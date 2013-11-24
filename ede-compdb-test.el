@@ -16,21 +16,17 @@
             ))
       (delete-directory builddir t))))
 
-(ert-deftest parse-compdb-file ()
-  "Tests the parsing of a CMake-generated compile_commands.json file"
+(ert-deftest make-compdb-project ()
+  "Tests the parsing of a CMake-generated compile_commands.json file to construct an ede-compdb-project"
   ;;:expected-result :passed ;; TODO failed if we can't locate cmake on the path
   (build-directory-fixture
    (lambda (testdir builddir)
-     (let ((compdbfile (expand-file-name "compile_commands.json" builddir)))
-       ;; Sanity check really
-       (should (file-exists-p builddir))
-       (let ((compdb (ede-compdb-read-compilation-database-file compdbfile)))
-         (should (hash-table-p compdb))
-         (should (< 0 (hash-table-count compdb)))
-         (should (gethash (expand-file-name "hello.cpp" testdir) compdb))
-         )
-       ))
-   ))
+     (should (file-exists-p builddir))
+     (let ((proj (ede-compdb-project "TESTPROJ" :file (expand-file-name "compile_commands.json" builddir))))
+       (should (hash-table-p (oref proj compdb)))
+       (should (< 0 (hash-table-count (oref proj compdb))))
+       (should (gethash (expand-file-name "hello.cpp" testdir) (oref proj compdb))))
+     )))
 
 (ert-deftest parse-command-line ()
   "Tests parsing of command lines"

@@ -4,7 +4,19 @@
 (require 'json)
 
 (defclass ede-compdb-project (ede-project)
-  ( )
+  (
+   (file :type string :initarg :file)
+   (compdb :initform (make-hash-table :test 'equal) 
+           :documentation "The compilation database, as a hash keyed on source file")
+   (file-timestamp
+    :initform nil
+    :protection :protected
+    :documentation "The last mod time for the compdb file")
+   (file-size
+    :initform nil
+    :protection :protected
+    :documentation "The last measured size of the compdb file")
+   )
   )
 
 (defclass compdb-source-file (eieio-named)
@@ -20,7 +32,6 @@
   )
 
 (defmethod initialize-instance :AFTER ((this compdb-source-file) &rest fields)
-  ;(call-next-method)
 
   ;; parse the command line if needed - compiler slot is used to determine whether we need to
   (unless (slot-boundp this 'compiler)
@@ -45,22 +56,35 @@
            )
           (when (char-equal ?- (string-to-char argi))
             (setq seenopt t)
-            )
-          )
-        )
-      )
-    )
+            )))
+      )))
+
+(defmethod reload-compdb ((this ede-compdb-project))
+  (clrhash (oref this compdb))
+  (mapcar (lambda (entry)
+            (let ((filename (cdr (assoc 'file entry)))
+                  (command-line (cdr (assoc 'command entry))))
+              (puthash filename (compdb-source-file filename :command-line command-line) (oref this compdb))))
+          (json-read-file (oref this file)))
   )
 
-(defun ede-compdb-read-compilation-database-file (file)
-  "Reads a compilation database file"
-  (let ((hash (make-hash-table :test 'equal)))
-    (mapcar (lambda (entry)
-              (let ((filename (cdr (assoc 'file entry)))
-                    (command-line (cdr (assoc 'command entry))))
-                (puthash filename (compdb-source-file filename :command-line command-line) hash)))
-            (json-read-file file))
-    hash
-    ))
+(defmethod reload-compdb-if-needed ((this ede-compdb-project))
+  (let* ((stats (file-attributes (oref this file)))
+         (size (nth 7 stats))
+         (mod (nth 5 stats)))
+    
+    ;; Logic stolen from ede/arduino.el
+    (when (or (not (oref this file-timestamp))
+              (/= (or (oref this file-size) 0) size)
+              (not (equal (oref this file-timestamp) mod)))
+      
+      (reload-compdb this)
+      (oset this file-timestamp mod)
+      (oset this file-size size)
+      )))
+
+(defmethod initialize-instance :AFTER ((this ede-compdb-project) &rest fields)
+  (reload-compdb-if-needed this)
+  )
 
 (provide 'ede-compdb)

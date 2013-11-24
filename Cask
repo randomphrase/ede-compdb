@@ -1,8 +1,8 @@
-(package "ede-compdb" "0.1" "EDE Project for Compilation database projects")
+(package "ede-compdb" "0.1" "EDE wrapper for Compilation Database projects")
 
-(depends-on "dash")
+(depends-on "ede" "1.2") ; might be possible to use earlier version
+(depends-on "eieio")
+(depends-on "json")
 
 (development
- ;; (depends-on "el-mock")
- ;; (depends-on "ecukes")
- (depends-on "ert-runner"))
+ (depends-on "ert"))
