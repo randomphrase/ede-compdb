@@ -3,6 +3,30 @@
 (require 'ede)
 (require 'json)
 
+(defclass compdb-entry (eieio-named)
+  (
+   (command-line
+    :type string :initarg :command-line
+    :documentation "The full command line to compile a given file")
+   (compiler
+    :type string :initarg :compiler
+    :documentation "The compiler portion of the full command line (may be multi-word)")
+   (include-path
+    :type list :initarg :include-path :initform '()
+    :documentation "List of directories to search for include files")
+   (includes
+    :type list :initarg :includes :initform '()
+    :documentation "List of implicitly included files")
+   (defines
+    :type list :initarg :defines :initform '()
+    :documentation "List of predefined macros")
+   (undefines
+    :type list :initarg :undefines :initform '()
+    :documentation "list of undefined macros")
+   )
+  "An entry in the compilation database"
+  )
+
 (defclass ede-compdb-project (ede-project)
   (
    (file :type string :initarg :file)
@@ -19,21 +43,10 @@
    )
   )
 
-(defclass compdb-entry (eieio-named)
-  (
-   (command-line :type string :initarg :command-line)
-   (compiler :type string :initarg :compiler)
-   (include-path :type list :initarg :include-path :initform '())
-   (includes :type list :initarg :includes :initform '())
-   (defines :type list :initarg :defines :initform '())
-   (undefines :type list :initarg :undefines :initform '())
-   )
-  "An entry in the compilation database"
-  )
-
 (defclass ede-compdb-target (ede-target)
   (
    (compilation :type compdb-entry :initarg :compilation)
+   (project :type ede-compdb-project :initarg :project)
    )
 )
 
@@ -65,13 +78,47 @@
             )))
       )))
 
+(defmethod ede-system-include-path ((this ede-compdb-target))
+  "Get the system include path used by project THIS."
+  (oref (oref this compilation) include-path))
+
+(defmethod ede-preprocessor-map ((this ede-compdb-target))
+  "Get the preprocessor map for target THIS."
+
+  ;; Stolen from cpp-root
+  (require 'semantic/db)
+  (let ((spp (oref (oref this compilation) defines)))
+    (mapc
+     (lambda (F)
+       (let* ((expfile (expand-file-name F))
+              (table (when expfile
+                       ;; Disable EDE init on preprocessor file load
+                       ;; otherwise we recurse, cause errs, etc.
+                       (let ((ede-constructing t))
+                         (semanticdb-file-table-object expfile))))
+              )
+         (cond
+          ((not (file-exists-p expfile))
+           (message "Cannot find file %s in project." F))
+          ((string= expfile (buffer-file-name))
+           ;; Don't include this file in it's own spp table.
+           )
+          ((not table)
+           (message "No db table available for %s." expfile))
+          (t
+           (when (semanticdb-needs-refresh-p table)
+             (semanticdb-refresh-table table))
+           (setq spp (append spp (oref table lexical-table)))))))
+     (oref (oref this compilation) includes))
+    spp))
+
 (defmethod project-rescan ((this ede-compdb-project))
   "Reload the compilation database."
   (clrhash (oref this compdb))
   (mapcar (lambda (entry)
             (let* ((filename (cdr (assoc 'file entry)))
                    (command-line (cdr (assoc 'command entry)))
-                   (target (if (slot-boundp this :targets) (object-assoc filename :path (oref this targets)) nil))
+                   (target (when (slot-boundp this :targets) (object-assoc filename :path (oref this targets))))
                    (compilation (compdb-entry filename :command-line command-line)))
               (puthash filename compilation (oref this compdb))
               (when target
@@ -98,10 +145,6 @@
   (project-rescan-if-needed this)
   )
 
-(defmethod ede-system-include-path ((this ede-compdb-target))
-  "Get the system include path used by project THIS."
-  (oref (oref this compilation) include-path))
-
 (defmethod ede-find-target ((this ede-compdb-project) buffer)
   "Find an EDE target in THIS for BUFFER.
 If one doesn't exist, create a new one."
@@ -110,10 +153,9 @@ If one doesn't exist, create a new one."
          (ans (object-assoc file :path targets))
          )
     (when (not ans)
-      (setq ans (ede-compdb-target file :compilation (gethash file (oref this compdb))))
+      (setq ans (ede-compdb-target file :compilation (gethash file (oref this compdb)) :project this))
       (object-add-to-list this :targets ans)
       )
     ans))
-
 
 (provide 'ede-compdb)

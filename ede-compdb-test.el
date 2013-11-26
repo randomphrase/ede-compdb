@@ -46,10 +46,20 @@
                (should (semantic-active-p))
                (should (not semantic-parser-warnings))
 
-               ;; All includes should be parsed
-               (dolist (inc (semantic-find-tags-by-class 'include))
-                       (should (semantic-dependency-tag-file inc)))
-               )
+               (let* ((tags (semantic-fetch-tags))
+                      (includes (semantic-find-tags-included tags))
+                      (funcs (semantic-find-tags-by-class 'function tags)))
+                 ;; All includes should be parsed
+                 (should includes)
+                 (dolist (inc includes)
+                   (should (semantic-dependency-tag-file inc)))
+
+                 ;; These function names are defined using macros, so shouldn't be visible unless we
+                 ;; have parsed the preprocessor map correctly
+                 (should (semantic-find-tags-by-name "HelloFoo" funcs))
+                 (should (semantic-find-tags-by-name "HelloBar" funcs))
+                 (should (semantic-find-tags-by-name "HelloBaz" funcs))
+               ))
            (kill-buffer buf)))
        ))))
 
