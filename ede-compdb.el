@@ -84,10 +84,13 @@
 
 (defmethod ede-system-include-path ((this ede-compdb-target))
   "Get the system include path used by project THIS."
+  (project-rescan-if-needed (oref this project))
   (oref (oref this compilation) include-path))
 
 (defmethod ede-preprocessor-map ((this ede-compdb-target))
   "Get the preprocessor map for target THIS."
+
+  (project-rescan-if-needed (oref this project))
 
   ;; Stolen from cpp-root
   (require 'semantic/db)
@@ -180,5 +183,7 @@ If one doesn't exist, create a new one."
       (object-add-to-list this :targets ans)
       )
     ans))
+
+
 
 (provide 'ede-compdb)
