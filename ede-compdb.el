@@ -8,6 +8,9 @@
    (command-line
     :type string :initarg :command-line
     :documentation "The full command line to compile a given file")
+   (directory
+    :type string :initarg :directory
+    :documentation "Directory in which to invoke the compile command")
    (compiler
     :type string :initarg :compiler
     :documentation "The compiler portion of the full command line (may be multi-word)")
@@ -76,7 +79,8 @@
           (when (char-equal ?- (string-to-char argi))
             (setq seenopt t)
             )))
-      )))
+      ))
+)
 
 (defmethod ede-system-include-path ((this ede-compdb-target))
   "Get the system include path used by project THIS."
@@ -114,20 +118,39 @@
 
 (defmethod project-rescan ((this ede-compdb-project))
   "Reload the compilation database."
-  (clrhash (oref this compdb))
-  (mapcar (lambda (entry)
-            (let* ((filename (cdr (assoc 'file entry)))
-                   (command-line (cdr (assoc 'command entry)))
-                   (target (when (slot-boundp this :targets) (object-assoc filename :path (oref this targets))))
-                   (compilation (compdb-entry filename :command-line command-line)))
-              (puthash filename compilation (oref this compdb))
-              (when target
-                (oset this :compilation compilation))))
-          (json-read-file (oref this file)))
+  (let* ((oldprojdir (when (slot-boundp this :directory) (oref this directory)))
+         (newprojdir oldprojdir))
+    (clrhash (oref this compdb))
+    (mapcar (lambda (entry)
+              (let* ((filename (cdr (assoc 'file entry)))
+                     (command-line (cdr (assoc 'command entry)))
+                     (target (when (slot-boundp this :targets) (object-assoc filename :path (oref this targets))))
+                     (compilation (compdb-entry filename :command-line command-line))
+                     (projdir (file-truename (file-name-directory filename))))
+                ;; Add this entry to the database
+                (puthash filename compilation (oref this compdb))
+                ;; Update target if there is one
+                (when target
+                  (oset this :compilation compilation))
+                ;; If we haven't set a project dir, or this entry's directory is a prefix of the
+                ;; current project dir, then update the project dir
+                (when (or (not newprojdir) (string-prefix-p projdir newprojdir))
+                  (setq newprojdir projdir))
+                ))
+            (json-read-file (oref this file)))
+            
+    (let ((stats (file-attributes (oref this file))))
+      (oset this file-timestamp (nth 5 stats))
+      (oset this file-size (nth 7 stats)))
 
-  (let ((stats (file-attributes (oref this file))))
-    (oset this file-timestamp (nth 5 stats))
-    (oset this file-size (nth 7 stats))))
+    ;; Project may have moved to a new directory - reset if so
+    (unless (equal oldprojdir newprojdir)
+      (oset this :directory newprojdir)
+      (when oldprojdir
+        ;; TODO: is this all that is required?
+        (ede-project-directory-remove-hash oldprojdir)))
+    )
+  )
 
 (defmethod project-rescan-if-needed ((this ede-compdb-project))
   "Reload the compilation database if the corresponding watch file has changed."

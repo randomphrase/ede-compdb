@@ -27,7 +27,7 @@
      (should (file-exists-p builddir))
 
      (let ((proj (ede-add-project-to-global-list
-                  (ede-compdb-project "TESTPROJ" :directory testdir :file (expand-file-name "compile_commands.json" builddir))))
+                  (ede-compdb-project "TESTPROJ" :file (expand-file-name "compile_commands.json" builddir))))
            (hellocpp (expand-file-name "hello.cpp" testdir)))
 
        ;; Basic sanity checks on the project itself
