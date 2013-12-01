@@ -126,7 +126,7 @@
                      (command-line (cdr (assoc 'command entry)))
                      (target (when (slot-boundp this :targets) (object-assoc filename :path (oref this targets))))
                      (compilation (compdb-entry filename :command-line command-line))
-                     (projdir (file-truename (file-name-directory filename))))
+                     (srcdir (file-name-as-directory (file-name-directory filename))))
                 ;; Add this entry to the database
                 (puthash filename compilation (oref this compdb))
                 ;; Update target if there is one
@@ -134,8 +134,8 @@
                   (oset this :compilation compilation))
                 ;; If we haven't set a project dir, or this entry's directory is a prefix of the
                 ;; current project dir, then update the project dir
-                (when (or (not newprojdir) (string-prefix-p projdir newprojdir))
-                  (setq newprojdir projdir))
+                (when (or (not newprojdir) (string-prefix-p srcdir newprojdir))
+                  (setq newprojdir srcdir))
                 ))
             (json-read-file (oref this file)))
             
