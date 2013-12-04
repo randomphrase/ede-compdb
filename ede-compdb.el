@@ -85,7 +85,10 @@
 (defmethod ede-system-include-path ((this ede-compdb-target))
   "Get the system include path used by project THIS."
   (project-rescan-if-needed (oref this project))
-  (oref (oref this compilation) include-path))
+  (mapcar
+   (lambda (I)
+     (expand-file-name I (file-name-directory (buffer-file-name))))
+   (oref (oref this compilation) include-path)))
 
 (defmethod ede-preprocessor-map ((this ede-compdb-target))
   "Get the preprocessor map for target THIS."
@@ -125,7 +128,7 @@
          (newprojdir oldprojdir))
     (clrhash (oref this compdb))
     (mapcar (lambda (entry)
-              (let* ((filename (cdr (assoc 'file entry)))
+              (let* ((filename (expand-file-name (cdr (assoc 'file entry)) (cdr (assoc 'directory entry))))
                      (command-line (cdr (assoc 'command entry)))
                      (target (when (slot-boundp this :targets) (object-assoc filename :path (oref this targets))))
                      (compilation (compdb-entry filename :command-line command-line))
