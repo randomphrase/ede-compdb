@@ -122,16 +122,32 @@
      (oref (oref this compilation) includes))
     spp))
 
+(defmethod project-compile-target ((this ede-compdb-target) &optional command)
+  "Compile the current target THIS.
+Argument COMMAND is the command to use for compiling the target."
+  (let* ((entry (oref this compilation))
+         (cmd (or command (oref entry command-line)))
+         (dir (oref entry directory)))
+    ;; TODO: is there a cleaner way to set the build directory?
+    (compilation-start (format "cd %s; %s" dir cmd))
+    ))
+    
+
+
 (defmethod project-rescan ((this ede-compdb-project))
   "Reload the compilation database."
   (let* ((oldprojdir (when (slot-boundp this :directory) (oref this directory)))
          (newprojdir oldprojdir))
     (clrhash (oref this compdb))
     (mapcar (lambda (entry)
-              (let* ((filename (expand-file-name (cdr (assoc 'file entry)) (cdr (assoc 'directory entry))))
+              (let* ((directory (file-name-as-directory (cdr (assoc 'directory entry))))
+                     (filename (expand-file-name (cdr (assoc 'file entry)) directory))
                      (command-line (cdr (assoc 'command entry)))
                      (target (when (slot-boundp this :targets) (object-assoc filename :path (oref this targets))))
-                     (compilation (compdb-entry filename :command-line command-line))
+                     (compilation
+                      (compdb-entry filename
+                                    :command-line command-line
+                                    :directory directory))
                      (srcdir (file-name-as-directory (file-name-directory filename))))
                 ;; Add this entry to the database
                 (puthash filename compilation (oref this compdb))
@@ -186,7 +202,5 @@ If one doesn't exist, create a new one."
       (object-add-to-list this :targets ans)
       )
     ans))
-
-
 
 (provide 'ede-compdb)
