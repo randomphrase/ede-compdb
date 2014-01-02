@@ -32,16 +32,26 @@
 
 (defclass ede-compdb-project (ede-project)
   (
-   (file :type string :initarg :file)
-   (compdb :initform (make-hash-table :test 'equal) 
-           :documentation "The compilation database, as a hash keyed on source file")
+   ;(file :type string :initarg :file)
+   (compdb-filename
+    :initarg :compdb-filename :type string 
+    :documentation "The filename for the compdb, eg \"compile_commmands.json\"")
+   (configuration-directories
+    :type list :initarg :configuration-directories
+    :documentation "For each configuration, a directory in which to locate the configuration database file")
+   (build-command
+    :type string :initarg :build-command :initform "make -k"
+    :documentation "A shell command to build the entire project. Invoked from the configuration directory.")
+
+   (compdb
+    :initform (make-hash-table :test 'equal) 
+    :documentation "The compilation database, as a hash keyed on source file")
+
    (file-timestamp
-    :initform nil
-    :protection :protected
+    :initform nil :protection :protected
     :documentation "The last mod time for the compdb file")
    (file-size
-    :initform nil
-    :protection :protected
+    :initform nil :protection :protected
     :documentation "The last measured size of the compdb file")
    )
   )
@@ -125,14 +135,34 @@
 (defmethod project-compile-target ((this ede-compdb-target) &optional command)
   "Compile the current target THIS.
 Argument COMMAND is the command to use for compiling the target."
+  (project-rescan-if-needed (oref this project))
   (let* ((entry (oref this compilation))
          (cmd (or command (oref entry command-line)))
          (dir (oref entry directory)))
     ;; TODO: is there a cleaner way to set the build directory?
     (compilation-start (format "cd %s; %s" dir cmd))
     ))
-    
 
+
+
+(defmethod current-configuration-directory ((this ede-compdb-project) &optional config)
+  "Returns the directory for the current :configuration-default"
+  (let* ((config (or config (oref this configuration-default)))
+         (dir (cdr (assoc config
+                          (mapcar* #'cons (oref this configurations) (oref this configuration-directories))))))
+    (unless dir
+      (error "No directory for configuration %s" config))
+    (unless (and (file-exists-p dir) (file-directory-p dir))
+      (error "No directory for configuration %s: %s" config dir))
+    dir))
+    
+(defmethod update-file-from-configuration-default ((this ede-compdb-project))
+  "Sets the project's :file from the current :configuration-default. Call this before using the :file slot"
+  (let ((configdir (current-configuration-directory this))
+        (filedir (file-name-directory (oref this file))))
+    (unless (and filedir (file-equal-p configdir filedir))
+      (oset this file (concat (file-name-as-directory configdir) (oref this compdb-filename))))
+    ))
 
 (defmethod project-rescan ((this ede-compdb-project))
   "Reload the compilation database."
@@ -176,6 +206,8 @@ Argument COMMAND is the command to use for compiling the target."
 
 (defmethod project-rescan-if-needed ((this ede-compdb-project))
   "Reload the compilation database if the corresponding watch file has changed."
+  (update-file-from-configuration-default this)
+
   (let ((stats (file-attributes (oref this file))))
     ;; Logic stolen from ede/arduino.el
     (when (or (not (oref this file-timestamp))
@@ -186,6 +218,26 @@ Argument COMMAND is the command to use for compiling the target."
 (defmethod initialize-instance :AFTER ((this ede-compdb-project) &rest fields)
   (unless (slot-boundp this 'targets)
     (oset this :targets nil))  
+
+  (unless (slot-boundp this 'file)
+    (oset this file (concat (current-configuration-directory this) (oref this compdb-filename))))
+
+  (unless (slot-boundp this 'compdb-filename)
+    (oset this compdb-filename (file-name-nondirectory (oref this file))))
+
+  (unless (slot-boundp this 'configuration-directories)
+    (oset this configuration-directories
+          (mapcar (lambda (c)
+                    ;; Use directory of :file for default configuration, nil for everything else
+                    (if (string= c (oref this configuration-default))
+                        (file-name-directory (oref this file))
+                      nil))
+                  (oref this configurations))))
+  
+  (let ((nconfigs (length (oref this configurations)))
+        (ndirs (length (oref this configuration-directories))))
+    (unless (= nconfigs ndirs)
+      (error "Need %d items in configuration-directories, %d found" nconfigs ndirs)))
 
   (project-rescan-if-needed this)
   )
@@ -202,5 +254,11 @@ If one doesn't exist, create a new one."
       (object-add-to-list this :targets ans)
       )
     ans))
+
+(defmethod project-compile-project ((this ede-compdb-project))
+  "Build the current project using :build-command"
+  (let ((default-directory (current-configuration-directory this)))
+    (compile (oref this build-command))
+    ))
 
 (provide 'ede-compdb)
