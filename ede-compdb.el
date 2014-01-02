@@ -63,6 +63,19 @@
    )
 )
 
+(defvar ede-compdb-compiler-cache nil "Cached include paths for each compiler detected")
+
+(defun ede-compdb-compiler-include-path (comp)
+  "Looks up include paths for COMP and adds to INCLUDE-PATHS"
+  (let ((path (cdr (assoc comp ede-compdb-compiler-cache))))
+    (unless path
+      (require 'semantic/bovine/gcc)
+      ;; FIXME: this is pretty simplistic but it will do for now...
+      (setq path (cdr (assoc '--with-gxx-include-dir
+                              (semantic-gcc-fields (semantic-gcc-query comp "-v")))))
+      (add-to-list 'ede-compdb-compiler-cache (cons comp path)))
+    path))
+
 (defmethod initialize-instance :AFTER ((this compdb-entry) &rest fields)
 
   ;; parse the command line if needed - compiler slot is used to determine whether we need to
@@ -89,6 +102,8 @@
           (when (char-equal ?- (string-to-char argi))
             (setq seenopt t)
             )))
+
+      (object-add-to-list this :include-path (ede-compdb-compiler-include-path (oref this compiler)) t)
       ))
 )
 
@@ -146,14 +161,14 @@ Argument COMMAND is the command to use for compiling the target."
 
 
 (defmethod current-configuration-directory ((this ede-compdb-project) &optional config)
-  "Returns the directory for the current :configuration-default"
+  "Returns the directory for CONFIG, or the current :configuration-default if not set"
   (let* ((config (or config (oref this configuration-default)))
          (dir (cdr (assoc config
                           (mapcar* #'cons (oref this configurations) (oref this configuration-directories))))))
     (unless dir
       (error "No directory for configuration %s" config))
     (unless (and (file-exists-p dir) (file-directory-p dir))
-      (error "No directory for configuration %s: %s" config dir))
+      (error "Directory not found for configuration %s: %s" config dir))
     dir))
     
 (defmethod update-file-from-configuration-default ((this ede-compdb-project))

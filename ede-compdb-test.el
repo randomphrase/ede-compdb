@@ -29,6 +29,7 @@
   "Runs cmake in a temporary build directory"
   (temp-directory-fixture
    (lambda (builddir)
+     (should (file-exists-p builddir))
      (with-current-buffer (get-buffer-create "*ede-compdb-test*")
        (invoke-cmake ede-compdb-test-srcdir builddir)
        (funcall body ede-compdb-test-srcdir builddir)
@@ -49,7 +50,8 @@
     (should (equal "clang" (oref f compiler)))
     (should (equal '(("foo") ("bar" . "baz")) (oref f defines)))
     (should (equal '("qux") (oref f undefines)))
-    (should (equal '("/opt/local/include" "includes") (oref f include-path)))
+    (should (equal "/opt/local/include" (nth 1 (oref f include-path))))
+    (should (equal "includes" (nth 2 (oref f include-path))))
     (should (equal '("bar.hpp") (oref f includes)))
     )
 )
@@ -59,8 +61,6 @@
   ;;:expected-result :passed ;; TODO failed if we can't locate cmake on the path
   (cmake-build-directory-fixture
    (lambda (testdir builddir)
-     (should (file-exists-p builddir))
-
      (let ((proj (ede-add-project-to-global-list
                   (ede-compdb-project "TESTPROJ" :file (expand-file-name "compile_commands.json" builddir))))
            (hellocpp (expand-file-name "hello.cpp" testdir)))
@@ -97,6 +97,33 @@
                ))
            (kill-buffer buf)))
        ))))
+
+(ert-deftest compiler-include-path-cache ()
+  "Tests that the compiler include paths are detected."
+  (cmake-build-directory-fixture
+   (lambda (testdir builddir)
+     (let ((savedcache ede-compdb-compiler-cache)
+           (proj nil))
+       (unwind-protect
+           (progn
+             (setq ede-compdb-compiler-cache nil)
+             (setq proj (ede-add-project-to-global-list 
+                         (ede-compdb-project "TESTPROJ" :file (expand-file-name "compile_commands.json" builddir))))
+             (should (listp ede-compdb-compiler-cache))
+             
+             ;; Check that compiler includes are present in the project includes
+             (when (car ede-compdb-compiler-cache)
+               (let* ((hellocpp (expand-file-name "hello.cpp" testdir))
+                      (buf (find-file-noselect hellocpp)))
+                 (unwind-protect
+                     (let* ((target (ede-find-target proj buf))
+                            (entry (oref target compilation))
+                            (compiler (oref entry compiler)))
+                       (should (memq (cdr (assoc compiler ede-compdb-compiler-cache)) (oref entry include-path))))
+                   (kill-buffer buf))))
+             )
+         (setq ede-compdb-compiler-cache savedcache)))
+     )))
 
 (ert-deftest multiple-configuration-directories ()
   "Tests that we can track multiple configuration directories. We create two projects, Debug and Release, and check that they can both build"
