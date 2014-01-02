@@ -43,18 +43,25 @@
       (sleep-for 1)
       (setq comp-proc (get-buffer-process comp-buf)))))
 
+
 (ert-deftest parse-command-line ()
   "Tests parsing of command lines"
-  (let ((f (compdb-entry "foo.cpp" :command-line
-                         "clang -Dfoo -Dbar=baz -Uqux -I/opt/local/include -Iincludes -include bar.hpp main.cpp")))
-    (should (equal "clang" (oref f compiler)))
-    (should (equal '(("foo") ("bar" . "baz")) (oref f defines)))
-    (should (equal '("qux") (oref f undefines)))
-    (should (equal "/opt/local/include" (nth 1 (oref f include-path))))
-    (should (equal "includes" (nth 2 (oref f include-path))))
-    (should (equal '("bar.hpp") (oref f includes)))
-    )
-)
+  (let ((savedcache ede-compdb-compiler-cache)
+        (f nil))
+    (unwind-protect
+        (progn
+          ;; Prepopulate the compiler cache so that we know what to expect in it
+          (setq ede-compdb-compiler-cache '(("clang" . "/opt/clang/include")))
+          (setq f (compdb-entry "foo.cpp" :command-line
+                                "clang -Dfoo -Dbar=baz -Uqux -I/opt/local/include -Iincludes -include bar.hpp main.cpp"))
+
+          (should (equal "clang" (oref f compiler)))
+          (should (equal '(("foo") ("bar" . "baz")) (oref f defines)))
+          (should (equal '("qux") (oref f undefines)))
+          (should (equal '("/opt/local/include" "includes" "/opt/clang/include") (oref f include-path)))
+          (should (equal '("bar.hpp") (oref f includes)))
+          )
+      (setq ede-compdb-compiler-cache savedcache))))
 
 (ert-deftest open-file-parsed ()
   "Tests the parsing of a source file. We ensure it correctly locates all include files."

@@ -102,8 +102,10 @@
           (when (char-equal ?- (string-to-char argi))
             (setq seenopt t)
             )))
-
-      (object-add-to-list this :include-path (ede-compdb-compiler-include-path (oref this compiler)) t)
+      
+      (let ((cpath (ede-compdb-compiler-include-path (oref this compiler))))
+        (when cpath
+          (object-add-to-list this :include-path cpath t)))
       ))
 )
 
