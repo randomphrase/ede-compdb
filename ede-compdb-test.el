@@ -147,7 +147,6 @@
 
          (let ((proj (ede-compdb-project
                       "TESTPROJ"
-                      :compdb-filename "compile_commands.json"
                       :configuration-directories (list dbgdir reldir))))
 
            (should (file-exists-p dbgdir))

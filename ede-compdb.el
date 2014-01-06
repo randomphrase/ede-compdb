@@ -34,8 +34,8 @@
   (
    ;(file :type string :initarg :file)
    (compdb-filename
-    :initarg :compdb-filename :type string 
-    :documentation "The filename for the compdb, eg \"compile_commmands.json\"")
+    :initarg :compdb-filename :type string :initform "compile_commands.json"
+    :documentation "The filename for the compilation database, eg \"compile_commmands.json\"")
    (configuration-directories
     :type list :initarg :configuration-directories
     :documentation "For each configuration, a directory in which to locate the configuration database file")
