@@ -58,7 +58,7 @@
 
 (defclass ede-compdb-target (ede-target)
   (
-   (compilation :type compdb-entry :initarg :compilation)
+   (compilation :type (or null compdb-entry) :initarg :compilation)
    (project :type ede-compdb-project :initarg :project)
    )
 )
@@ -112,42 +112,45 @@
 (defmethod ede-system-include-path ((this ede-compdb-target))
   "Get the system include path used by project THIS."
   (project-rescan-if-needed (oref this project))
-  (mapcar
-   (lambda (I)
-     (expand-file-name I (file-name-directory (buffer-file-name))))
-   (oref (oref this compilation) include-path)))
+  (let ((comp (oref this compilation)))
+    (when comp
+      (mapcar
+       (lambda (I)
+         (expand-file-name I (file-name-directory (buffer-file-name))))
+       (oref comp include-path)))))
 
 (defmethod ede-preprocessor-map ((this ede-compdb-target))
   "Get the preprocessor map for target THIS."
 
   (project-rescan-if-needed (oref this project))
 
-  ;; Stolen from cpp-root
-  (require 'semantic/db)
-  (let ((spp (oref (oref this compilation) defines)))
-    (mapc
-     (lambda (F)
-       (let* ((expfile (expand-file-name F))
-              (table (when expfile
-                       ;; Disable EDE init on preprocessor file load
-                       ;; otherwise we recurse, cause errs, etc.
-                       (let ((ede-constructing t))
-                         (semanticdb-file-table-object expfile))))
-              )
-         (cond
-          ((not (file-exists-p expfile))
-           (message "Cannot find file %s in project." F))
-          ((string= expfile (buffer-file-name))
-           ;; Don't include this file in it's own spp table.
-           )
-          ((not table)
-           (message "No db table available for %s." expfile))
-          (t
-           (when (semanticdb-needs-refresh-p table)
-             (semanticdb-refresh-table table))
-           (setq spp (append spp (oref table lexical-table)))))))
-     (oref (oref this compilation) includes))
-    spp))
+  (when (oref this compilation)
+    ;; Stolen from cpp-root
+    (require 'semantic/db)
+    (let ((spp (oref (oref this compilation) defines)))
+      (mapc
+       (lambda (F)
+         (let* ((expfile (expand-file-name F))
+                (table (when expfile
+                         ;; Disable EDE init on preprocessor file load
+                         ;; otherwise we recurse, cause errs, etc.
+                         (let ((ede-constructing t))
+                           (semanticdb-file-table-object expfile))))
+                )
+           (cond
+            ((not (file-exists-p expfile))
+             (message "Cannot find file %s in project." F))
+            ((string= expfile (buffer-file-name))
+             ;; Don't include this file in it's own spp table.
+             )
+            ((not table)
+             (message "No db table available for %s." expfile))
+            (t
+             (when (semanticdb-needs-refresh-p table)
+               (semanticdb-refresh-table table))
+             (setq spp (append spp (oref table lexical-table)))))))
+       (oref (oref this compilation) includes))
+      spp)))
 
 (defmethod project-compile-target ((this ede-compdb-target) &optional command)
   "Compile the current target THIS.
@@ -189,6 +192,7 @@ Argument COMMAND is the command to use for compiling the target."
     (mapcar (lambda (entry)
               (let* ((directory (file-name-as-directory (cdr (assoc 'directory entry))))
                      (filename (expand-file-name (cdr (assoc 'file entry)) directory))
+                     (filetruename (file-truename filename))
                      (command-line (cdr (assoc 'command entry)))
                      (target (when (slot-boundp this :targets) (object-assoc filename :path (oref this targets))))
                      (compilation
@@ -197,7 +201,7 @@ Argument COMMAND is the command to use for compiling the target."
                                     :directory directory))
                      (srcdir (file-name-as-directory (file-name-directory filename))))
                 ;; Add this entry to the database
-                (puthash filename compilation (oref this compdb))
+                (puthash filetruename compilation (oref this compdb))
                 ;; Update target if there is one
                 (when target
                   (oset this :compilation compilation))
@@ -237,11 +241,18 @@ Argument COMMAND is the command to use for compiling the target."
     (oset this :targets nil))  
 
   (unless (slot-boundp this 'file)
-    (oset this file (concat (current-configuration-directory this) (oref this compdb-filename))))
-
-  (unless (slot-boundp this 'compdb-filename)
-    (oset this compdb-filename (file-name-nondirectory (oref this file))))
-
+    (oset this file 
+          (cond
+           ((slot-boundp this 'directory)
+            ;; Set the :file from :directory/:compdb-filename
+            (concat (file-name-as-directory (oref this directory))
+                    (oref this compdb-filename)))
+           ((slot-boundp this 'configuration-directories)
+            ;; If we have configuration directories, pick the current one
+            (concat (current-configuration-directory this) (oref this compdb-filename)))
+           (t (error "Can't find compdb file"))
+           )))
+    
   (unless (slot-boundp this 'configuration-directories)
     (oset this configuration-directories
           (mapcar (lambda (c)
@@ -256,17 +267,17 @@ Argument COMMAND is the command to use for compiling the target."
     (unless (= nconfigs ndirs)
       (error "Need %d items in configuration-directories, %d found" nconfigs ndirs)))
 
-  (project-rescan-if-needed this)
+  (project-rescan this)
   )
 
 (defmethod ede-find-target ((this ede-compdb-project) buffer)
   "Find an EDE target in THIS for BUFFER.
 If one doesn't exist, create a new one."
   (let* ((targets (oref this targets))
-         (file (expand-file-name (buffer-file-name buffer)))
-         (ans (object-assoc file :path targets))
-         )
-    (when (not ans)
+         (file (file-truename (buffer-file-name buffer)))
+         (target (object-assoc file :path targets)))
+    (when (not target)
+      (project-rescan-if-needed this)
       (setq ans (ede-compdb-target file :compilation (gethash file (oref this compdb)) :project this))
       (object-add-to-list this :targets ans)
       )
@@ -277,5 +288,21 @@ If one doesn't exist, create a new one."
   (let ((default-directory (current-configuration-directory this)))
     (compile (oref this build-command))
     ))
+
+(defun compdb-load-project (dir)
+  "Creates an ede-compdb project for DIR"
+  ;; TODO: Other project types keep their own cache of active projects - do we need to as well?
+  (ede-add-project-to-global-list
+   (ede-compdb-project (file-name-directory dir)
+                       :directory (file-name-as-directory dir))))
+                 
+;;;###autoload
+(ede-add-project-autoload
+ (ede-project-autoload "compdb"
+                       :file 'ede-compdb
+                       :proj-file "compile_commands.json"
+                       :load-type 'compdb-load-project
+                       :class-sym 'ede-compdb-project)
+ 'unique)
 
 (provide 'ede-compdb)

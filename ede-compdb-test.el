@@ -70,11 +70,12 @@
    (lambda (testdir builddir)
      (let ((proj (ede-add-project-to-global-list
                   (ede-compdb-project "TESTPROJ" :file (expand-file-name "compile_commands.json" builddir))))
-           (hellocpp (expand-file-name "hello.cpp" testdir)))
+           (hellocpp (expand-file-name "hello.cpp" testdir))
+           (confighpp (expand-file-name "config.hpp" testdir)))
 
        ;; Basic sanity checks on the project itself
        (should (eq proj (ede-directory-get-open-project testdir)))
-       (should (gethash hellocpp (oref proj compdb)))
+       (should (gethash (file-truename hellocpp) (oref proj compdb)))
 
        ;; Now we'll open a source file and check that it is parsed correctly
        (let ((buf (find-file-noselect hellocpp)))
@@ -102,6 +103,16 @@
                  ;; (should (semantic-find-tags-by-name "HelloBar" funcs))
                  ;; (should (semantic-find-tags-by-name "HelloBaz" funcs))
                ))
+           (kill-buffer buf)))
+
+       ;; Try a header file
+       (let ((buf (find-file-noselect confighpp)))
+         (unwind-protect
+             (with-current-buffer buf
+               ;; Should have set up the current project and target
+               (should (eq proj (ede-current-project)))
+               (should (not (oref ede-object compilation)))
+               )
            (kill-buffer buf)))
        ))))
 
@@ -161,3 +172,25 @@
            (should (file-executable-p (concat reldir "hello")))
          
            ))))))
+
+(ert-deftest autoload-project ()
+  "Tests that we can autoload a project depending on the presence of a compilation database file"
+  (temp-directory-fixture
+   (lambda (builddir)
+     ;; To keep the source directory clean, we'll copy the test project into the temp directory
+     (copy-directory ede-compdb-test-srcdir builddir)
+
+     (let ((srcdir (file-name-as-directory (concat builddir "test"))))
+       (invoke-cmake "." srcdir)
+
+       (let* ((hellocpp (expand-file-name "hello.cpp" srcdir))
+              (buf (find-file-noselect hellocpp)))
+         (unwind-protect
+             (with-current-buffer buf
+               ;; Should have set up the current project and target
+               (should (ede-current-project))
+               (should ede-object)
+               (should (oref ede-object compilation))
+               )
+           (kill-buffer buf))
+         )))))
