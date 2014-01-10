@@ -1,5 +1,4 @@
 #+TITLE: Emacs Development Environment (EDE) wrapper for Compilation Database projects
-#+OPTIONS: H:4
 #+AUTHOR: Alastair Rankine
 #+EMAIL: alastair@girtby.net
 
@@ -77,20 +76,9 @@ So how is the compilation database generated? Several methods are possible:
 
 Use of the compilation database is becoming more and more common, particularly for those projects using the clang toolset.
 
-** Limitations/To Dos
+** Development
 
-The 'test' directory contains an example c++ project which can be used for testing purposes. For example:
-
-cd .../ede-compdb/test
-cmake -DCMAKE_EXPORT_COMPILE_COMMANDS=TRUE .
-
-From here you create the EDE project simply by pointing the :file attribute at the compile_commands.json file. For example:
-
-(ede-add-project-to-global-list (ede-compdb-project "test" :file "compile_commands.json"))
-
-If all goes well, the project should load and the include path should be set correctly for each source file. This file is watched at reloaded if a change in size or mod time is detected.
-
-There is an ert test suite which basically checks the above process works in an automated fashion, although it uses a temp directory as a build directory.
+There is an ert test suite which basically checks the above process works in an automated fashion, although it uses a temp directory as a build directory. CMake is required to run these tests successfully.
 
 ** Current limitations/TODOs:
 
