@@ -33,22 +33,49 @@ Now open any of your source files in emacs, and you should see all the includes 
 
 ** Build Directories
 
-The quickstart example above assumes that you are building your binaries into the same directory
+The quickstart example above assumes that you are building your binaries into the same directory. By default, EDE-compdb projects are loaded when a ~compile_commands.json~ file is found in the current directory, or in a parent directory. If you build your projects in the same directory as your source, no additional configuration is required.
 
-With a bit of extra effort, EDE-compdb can be configured to use a separate build directory, or even multiple build directories.
+However, EDE-compdb can be configured to use a separate build directory, or even multiple build directories. This is desirable when developing for multiple configurations (eg a debug build for feature development, and a release build for performance/integration testing).
 
-The trick is that when the ~ede-compdb-project~ object is instantiated, you can give it additional options. The following example should illustrate:
+In this (admittedly complex) example, we have a possible four different types of build for each project. Each build type is assigned a separate directory, relative to the project root. 
 
 #+BEGIN_SRC emacs-lisp
-    (ede-add-project-to-global-list
-     (ede-compdb-project "YOURPROJ"
-                         :configurations '("Debug" "Release" "RelWithDebInfo" "MinSizeRel")
-                         :configuration-directories '("build.dbg" "build.rel" "build.r+d" "build.min")
-                         :build-command "make -k all"
-                         ))
+  (defvar my-cmake-build-directories
+    '(("None" . "build")
+      ("Debug" . "build.dbg")
+      ("Release" . "build.rel")
+      ("RelWithDebInfo" . "build.r+d")))
+  
+  (defun my-load-cmake-project (dir)
+      "Creates a project for the given directory sourced at dir"
+      (let ((config-and-dir (car (cl-member-if 
+                                  (lambda (c)
+                                    (file-readable-p (expand-file-name "compile_commands.json"
+                                                                       (file-name-as-directory (cdr c)))))
+                                  my-cmake-build-directories))))
+        (unless config-and-dir
+          (error "Couldn't determine build directory for project at %s" dir))
+        (ede-add-project-to-global-list
+         (ede-compdb-project 
+          (file-name-nondirectory (directory-file-name dir))
+          :file (expand-file-name "CMakeLists.txt" dir)
+          :compdb-file (expand-file-name "compile_commands.json" (cdr config-and-dir))
+          :configuration-default (car config-and-dir)
+          :configuration-directories (mapcar #'cdr my-cmake-build-directories)
+          :configurations (mapcar #'car my-cmake-build-directories)
+          :build-command "cmake --build"
+          ))))
+  
+  (ede-add-project-autoload
+   (ede-project-autoload "CMake"
+                         :file 'ede-compdb
+                         :proj-file "CMakeLists.txt"
+                         :load-type 'my-load-cmake-project
+                         :class-sym 'ede-compdb-project)
+   'unique)
 #+END_SRC
 
-In this example, we have four different build directories, corresponding to four different configurations (which also happen to be the default configurations supported by CMake). When you switch to a new configuration using ~M-x ede-project-configurations-set~, or the Development menu, you will switch to a new compilation database, and it will be re-read as needed.
+The ~my-cmake-build-directories~ variable describes the possible build types and their corresponding directories. Before loading the EDE-compdb project, we determine which build directory is present. From this we infer the build type, which corresponds to the ~:configuration-default~ slot.
 
 The ~:build-command~ attribute sets the command to be used to build the entire project. This is available using the existing EDE shortcuts (eg "C-c . C" by default). This command is run from the current configuration directory.
 

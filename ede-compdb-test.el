@@ -69,7 +69,9 @@
   (cmake-build-directory-fixture
    (lambda (testdir builddir)
      (let ((proj (ede-add-project-to-global-list
-                  (ede-compdb-project "TESTPROJ" :file (expand-file-name "compile_commands.json" builddir))))
+                  (ede-compdb-project "TESTPROJ"
+                                      :compdb-file (expand-file-name "compile_commands.json" builddir)
+                                      :file (expand-file-name "CMakeLists.txt" testdir))))
            (hellocpp (expand-file-name "hello.cpp" testdir))
            (confighpp (expand-file-name "config.hpp" testdir)))
 
@@ -126,7 +128,10 @@
            (progn
              (setq ede-compdb-compiler-cache nil)
              (setq proj (ede-add-project-to-global-list 
-                         (ede-compdb-project "TESTPROJ" :file (expand-file-name "compile_commands.json" builddir))))
+                         (ede-compdb-project "TESTPROJ"
+                                             :directory builddir
+                                             :compdb-file "compile_commands.json"
+                                             :file (expand-file-name "CMakeLists.txt" testdir))))
              (should (listp ede-compdb-compiler-cache))
              
              ;; Check that compiler includes are present in the project includes
@@ -158,6 +163,8 @@
 
          (let ((proj (ede-compdb-project
                       "TESTPROJ"
+                      :compdb-file "compile_commands.json"
+                      :file (expand-file-name "CMakeLists.txt" ede-compdb-test-srcdir)
                       :configuration-directories (list dbgdir reldir))))
 
            (should (file-exists-p dbgdir))

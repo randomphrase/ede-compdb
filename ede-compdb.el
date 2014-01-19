@@ -32,13 +32,12 @@
 
 (defclass ede-compdb-project (ede-project)
   (
-   ;(file :type string :initarg :file)
-   (compdb-filename
-    :initarg :compdb-filename :type string :initform "compile_commands.json"
-    :documentation "The filename for the compilation database, eg \"compile_commmands.json\"")
+   (compdb-file
+    :initarg :compdb-file :type string
+    :documentation "The filename for the compilation database, eg \"compile_commmands.json\". This is evaluated relative to the current configuration directory.")
    (configuration-directories
-    :type list :initarg :configuration-directories
-    :documentation "For each configuration, a directory in which to locate the configuration database file")
+    :type (or list string) :initarg :configuration-directories
+    :documentation "For each configuration, a directory in which to locate the configuration database file. This is evaluated relative to :directory")
    (build-command
     :type string :initarg :build-command :initform "make -k"
     :documentation "A shell command to build the entire project. Invoked from the configuration directory.")
@@ -47,10 +46,10 @@
     :initform (make-hash-table :test 'equal) 
     :documentation "The compilation database, as a hash keyed on source file")
 
-   (file-timestamp
+   (compdb-file-timestamp
     :initform nil :protection :protected
     :documentation "The last mod time for the compdb file")
-   (file-size
+   (compdb-file-size
     :initform nil :protection :protected
     :documentation "The last measured size of the compdb file")
    )
@@ -174,19 +173,16 @@ Argument COMMAND is the command to use for compiling the target."
       (error "No directory for configuration %s" config))
     (unless (and (file-exists-p dir) (file-directory-p dir))
       (error "Directory not found for configuration %s: %s" config dir))
-    dir))
+    (expand-file-name dir (oref this directory))))
     
-(defmethod update-file-from-configuration-default ((this ede-compdb-project))
-  "Sets the project's :file from the current :configuration-default. Call this before using the :file slot"
-  (let ((configdir (current-configuration-directory this))
-        (filedir (file-name-directory (oref this file))))
-    (unless (and filedir (file-equal-p configdir filedir))
-      (oset this file (concat (file-name-as-directory configdir) (oref this compdb-filename))))
-    ))
+(defmethod current-compdb-path ((this ede-compdb-project))
+  "Returns a full path to the current compdb file"
+  (expand-file-name (oref this compdb-file) (current-configuration-directory this)))
 
 (defmethod project-rescan ((this ede-compdb-project))
   "Reload the compilation database."
-  (let* ((oldprojdir (when (slot-boundp this :directory) (oref this directory)))
+  (let* ((compdb-path (current-compdb-path this))
+         (oldprojdir (when (slot-boundp this :directory) (oref this directory)))
          (newprojdir oldprojdir))
     (clrhash (oref this compdb))
     (mapcar (lambda (entry)
@@ -210,11 +206,11 @@ Argument COMMAND is the command to use for compiling the target."
                 (when (or (not newprojdir) (string-prefix-p srcdir newprojdir))
                   (setq newprojdir srcdir))
                 ))
-            (json-read-file (oref this file)))
+            (json-read-file compdb-path))
             
-    (let ((stats (file-attributes (oref this file))))
-      (oset this file-timestamp (nth 5 stats))
-      (oset this file-size (nth 7 stats)))
+    (let ((stats (file-attributes compdb-path)))
+      (oset this compdb-file-timestamp (nth 5 stats))
+      (oset this compdb-file-size (nth 7 stats)))
 
     ;; Project may have moved to a new directory - reset if so
     (unless (equal oldprojdir newprojdir)
@@ -227,45 +223,41 @@ Argument COMMAND is the command to use for compiling the target."
 
 (defmethod project-rescan-if-needed ((this ede-compdb-project))
   "Reload the compilation database if the corresponding watch file has changed."
-  (update-file-from-configuration-default this)
-
-  (let ((stats (file-attributes (oref this file))))
+  (let ((stats (file-attributes (current-compdb-path this))))
     ;; Logic stolen from ede/arduino.el
-    (when (or (not (oref this file-timestamp))
-              (/= (or (oref this file-size) 0) (nth 7 stats))
-              (not (equal (oref this file-timestamp) (nth 5 stats))))
+    (when (or (not (oref this compdb-file-timestamp))
+              (/= (or (oref this compdb-file-size) 0) (nth 7 stats))
+              (not (equal (oref this compdb-file-timestamp) (nth 5 stats))))
       (project-rescan this))))
 
 (defmethod initialize-instance :AFTER ((this ede-compdb-project) &rest fields)
   (unless (slot-boundp this 'targets)
     (oset this :targets nil))  
 
-  (unless (slot-boundp this 'file)
-    (oset this file 
-          (cond
-           ((slot-boundp this 'directory)
-            ;; Set the :file from :directory/:compdb-filename
-            (concat (file-name-as-directory (oref this directory))
-                    (oref this compdb-filename)))
-           ((slot-boundp this 'configuration-directories)
-            ;; If we have configuration directories, pick the current one
-            (concat (current-configuration-directory this) (oref this compdb-filename)))
-           (t (error "Can't find compdb file"))
-           )))
-    
+  (unless (slot-boundp this 'compdb-file)
+    (oset this compdb-file (file-name-nondirectory (expand-file-name (oref this file)))))
+
   (unless (slot-boundp this 'configuration-directories)
-    (oset this configuration-directories
-          (mapcar (lambda (c)
-                    ;; Use directory of :file for default configuration, nil for everything else
-                    (if (string= c (oref this configuration-default))
-                        (file-name-directory (oref this file))
-                      nil))
-                  (oref this configurations))))
-  
+    ;; Short-cut: set the current configuration directory by supplying a full pathname to :compdb-file
+    (let ((confdir (or (file-name-directory (oref this compdb-file)) ".")))
+      (oset this configuration-directories
+            (mapcar (lambda (c)
+                      (if (string= c (oref this configuration-default))
+                          confdir nil))
+                  (oref this configurations)))))
+
   (let ((nconfigs (length (oref this configurations)))
         (ndirs (length (oref this configuration-directories))))
     (unless (= nconfigs ndirs)
       (error "Need %d items in configuration-directories, %d found" nconfigs ndirs)))
+
+  (unless (slot-boundp this 'file)
+    ;; Set the :file from :directory/:compdb-file
+    (oset this file (expand-file-name (oref this compdb-file) (oref this directory))))
+
+  (unless (slot-boundp this 'directory)
+    ;; set a starting :directory so that we can evaluate current-configuration-directory, needed for project-rescan
+    (oset this directory (file-name-directory (expand-file-name (oref this file)))))
 
   (project-rescan this)
   )
@@ -293,7 +285,8 @@ If one doesn't exist, create a new one."
   "Creates an ede-compdb project for DIR"
   ;; TODO: Other project types keep their own cache of active projects - do we need to as well?
   (ede-add-project-to-global-list
-   (ede-compdb-project (file-name-directory dir)
+   (ede-compdb-project (file-name-nondirectory (directory-file-name dir))
+                       :compdb-file "compile_commands.json"
                        :directory (file-name-as-directory dir))))
                  
 ;;;###autoload
