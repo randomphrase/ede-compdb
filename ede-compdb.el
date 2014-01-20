@@ -282,7 +282,7 @@ If one doesn't exist, create a new one."
 (defmethod project-compile-project ((this ede-compdb-project))
   "Build the current project using :build-command"
   (let ((default-directory (current-configuration-directory this)))
-    (compile (oref this build-command))
+    (compilation-start (format "cd %s; %s" default-directory (oref this build-command)))
     ))
 
 (defun compdb-load-project (dir)
