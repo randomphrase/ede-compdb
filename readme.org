@@ -37,7 +37,7 @@ The quickstart example above assumes that you are building your binaries into th
 
 However, EDE-compdb can be configured to use a separate build directory, or even multiple build directories. This is desirable when developing for multiple configurations (eg a debug build for feature development, and a release build for performance/integration testing).
 
-In this (admittedly complex) example, we have a possible four different types of build for each project. Each build type is assigned a separate directory, relative to the project root. 
+In this (admittedly complex) example, we have a possible four different types of build for each project. Each build type is assigned a separate directory, relative to the project root. At load time, we examine the project to see which, if any, of the build directories is present. This directory is selected as the build directory, and additionally we set the ~:configuration-default~ to the corresponding value.
 
 #+BEGIN_SRC emacs-lisp
   (defvar my-cmake-build-directories
@@ -47,35 +47,39 @@ In this (admittedly complex) example, we have a possible four different types of
       ("RelWithDebInfo" . "build.r+d")))
   
   (defun my-load-cmake-project (dir)
-      "Creates a project for the given directory sourced at dir"
-      (let ((config-and-dir (car (cl-member-if 
-                                  (lambda (c)
-                                    (file-readable-p (expand-file-name "compile_commands.json"
-                                                                       (file-name-as-directory (cdr c)))))
-                                  my-cmake-build-directories))))
-        (unless config-and-dir
-          (error "Couldn't determine build directory for project at %s" dir))
-        (ede-add-project-to-global-list
-         (ede-compdb-project 
-          (file-name-nondirectory (directory-file-name dir))
-          :file (expand-file-name "CMakeLists.txt" dir)
-          :compdb-file (expand-file-name "compile_commands.json" (cdr config-and-dir))
-          :configuration-default (car config-and-dir)
-          :configuration-directories (mapcar #'cdr my-cmake-build-directories)
-          :configurations (mapcar #'car my-cmake-build-directories)
-          :build-command "cmake --build"
-          ))))
+    "Creates a project for the given directory sourced at dir"
+    (let ((default-directory dir)
+          (config-and-dir (car (cl-member-if (lambda (c)
+                                               (file-readable-p
+                                                (expand-file-name "compile_commands.json" (cdr c))))
+                                             my-cmake-build-directories))))
+      (unless config-and-dir
+        (error "Couldn't determine build directory for project at %s" dir))
+      (ede-add-project-to-global-list
+       (ede-compdb-project 
+        (file-name-nondirectory (directory-file-name dir))
+        :file (expand-file-name "CMakeLists.txt" dir)
+        :compdb-file (expand-file-name "compile_commands.json" (cdr config-and-dir))
+        :configuration-default (car config-and-dir)
+        :configuration-directories (mapcar #'cdr my-cmake-build-directories)
+        :configurations (mapcar #'car my-cmake-build-directories)
+        :build-command "cmake --build ."
+        ))))
+  
+  (defun vc-project-root (dir)
+    (require 'vc)
+    (let* ((default-directory dir)
+           (backend (vc-deduce-backend)))
+      (and backend (vc-call-backend backend 'root default-directory))))
   
   (ede-add-project-autoload
    (ede-project-autoload "CMake"
                          :file 'ede-compdb
                          :proj-file "CMakeLists.txt"
+                         :proj-root 'vc-project-root
                          :load-type 'my-load-cmake-project
-                         :class-sym 'ede-compdb-project)
-   'unique)
+                         :class-sym 'ede-compdb-project))
 #+END_SRC
-
-The ~my-cmake-build-directories~ variable describes the possible build types and their corresponding directories. Before loading the EDE-compdb project, we determine which build directory is present. From this we infer the build type, which corresponds to the ~:configuration-default~ slot.
 
 The ~:build-command~ attribute sets the command to be used to build the entire project. This is available using the existing EDE shortcuts (eg "C-c . C" by default). This command is run from the current configuration directory.
 
@@ -105,7 +109,7 @@ Use of the compilation database is becoming more and more common, particularly f
 
 ** Development
 
-There is an ert test suite which basically checks the above process works in an automated fashion, although it uses a temp directory as a build directory. CMake is required to run these tests successfully.
+There is an ert test suite which uses a sample CMake project, with a temporary directory as a build directory. CMake and a C++ compiler is required to run these tests successfully.
 
 ** Current limitations/TODOs:
 
