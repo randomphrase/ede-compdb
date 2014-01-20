@@ -167,13 +167,14 @@ Argument COMMAND is the command to use for compiling the target."
 (defmethod current-configuration-directory ((this ede-compdb-project) &optional config)
   "Returns the directory for CONFIG, or the current :configuration-default if not set"
   (let* ((config (or config (oref this configuration-default)))
-         (dir (cdr (assoc config
-                          (mapcar* #'cons (oref this configurations) (oref this configuration-directories))))))
+         (dirname (cdr (assoc config
+                          (mapcar* #'cons (oref this configurations) (oref this configuration-directories)))))
+         (dir (and dirname (expand-file-name dirname (oref this directory)))))
     (unless dir
       (error "No directory for configuration %s" config))
     (unless (and (file-exists-p dir) (file-directory-p dir))
       (error "Directory not found for configuration %s: %s" config dir))
-    (expand-file-name dir (oref this directory))))
+    dir))
     
 (defmethod current-compdb-path ((this ede-compdb-project))
   "Returns a full path to the current compdb file"
@@ -250,6 +251,9 @@ Argument COMMAND is the command to use for compiling the target."
         (ndirs (length (oref this configuration-directories))))
     (unless (= nconfigs ndirs)
       (error "Need %d items in configuration-directories, %d found" nconfigs ndirs)))
+
+  ;; Needed if we've used the above short-cut
+  (oset this compdb-file (file-name-nondirectory (oref this compdb-file)))
 
   (unless (slot-boundp this 'file)
     ;; Set the :file from :directory/:compdb-file
