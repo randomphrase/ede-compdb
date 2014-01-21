@@ -271,8 +271,8 @@ Argument COMMAND is the command to use for compiling the target."
 If one doesn't exist, create a new one."
   (let* ((targets (oref this targets))
          (file (file-truename (buffer-file-name buffer)))
-         (target (object-assoc file :path targets)))
-    (when (not target)
+         (ans (object-assoc file :path targets)))
+    (when (not ans)
       (project-rescan-if-needed this)
       (setq ans (ede-compdb-target file :compilation (gethash file (oref this compdb)) :project this))
       (object-add-to-list this :targets ans)
