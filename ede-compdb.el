@@ -266,6 +266,11 @@ Argument COMMAND is the command to use for compiling the target."
   (project-rescan this)
   )
 
+(defmethod ede-find-subproject-for-directory ((proj ede-compdb-project)
+                                              dir)
+  "Return PROJ, for handling all subdirs below DIR."
+  proj)
+
 (defmethod ede-find-target ((this ede-compdb-project) buffer)
   "Find an EDE target in THIS for BUFFER.
 If one doesn't exist, create a new one."

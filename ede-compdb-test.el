@@ -73,6 +73,7 @@
                                       :compdb-file (expand-file-name "compile_commands.json" builddir)
                                       :file (expand-file-name "CMakeLists.txt" testdir))))
            (hellocpp (expand-file-name "hello.cpp" testdir))
+           (worldcpp (expand-file-name "world/world.cpp" testdir))
            (confighpp (expand-file-name "config.hpp" testdir)))
 
        ;; Basic sanity checks on the project itself
@@ -105,6 +106,20 @@
                  ;; (should (semantic-find-tags-by-name "HelloBar" funcs))
                  ;; (should (semantic-find-tags-by-name "HelloBaz" funcs))
                ))
+           (kill-buffer buf)))
+
+       ;; Try a file in a subdirectory
+       (let ((buf (find-file-noselect worldcpp)))
+         (unwind-protect
+             (with-current-buffer buf
+               ;; Should have set up the current project and target
+               (should (eq proj (ede-current-project)))
+               (should (oref ede-object compilation))
+
+               ;; Should have been parsed
+               (should (semantic-active-p))
+               (should (not semantic-parser-warnings))
+               )
            (kill-buffer buf)))
 
        ;; Try a header file
@@ -190,14 +205,14 @@
      (let ((srcdir (file-name-as-directory (concat builddir "test"))))
        (invoke-cmake "." srcdir)
 
-       (let* ((hellocpp (expand-file-name "hello.cpp" srcdir))
-              (buf (find-file-noselect hellocpp)))
-         (unwind-protect
-             (with-current-buffer buf
-               ;; Should have set up the current project and target
-               (should (ede-current-project))
-               (should ede-object)
-               (should (oref ede-object compilation))
-               )
-           (kill-buffer buf))
-         )))))
+       (dolist (f '("hello.cpp" "world/world.cpp"))
+         (let* ((hellocpp (expand-file-name f srcdir))
+                (buf (find-file-noselect hellocpp)))
+           (unwind-protect
+               (with-current-buffer buf
+                 ;; Should have set up the current project and target
+                 (should (ede-current-project))
+                 (should ede-object)
+                 (should (oref ede-object compilation)))
+             (kill-buffer buf))))
+         ))))
