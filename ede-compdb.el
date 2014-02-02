@@ -55,12 +55,23 @@
    )
   )
 
+(defclass ede-ninja-project (ede-compdb-project)
+  (
+   (build-command
+    :type string :initarg :build-command :initform "ninja"
+    :documentation "A shell command to build the entire project. Invoked from the configuration directory.")
+   )
+  "Variant of ede-compdb-project, extended to take advantage of the ninja build tool."
+)
+
 (defclass ede-compdb-target (ede-target)
+  ;; TODO: this is not really in keeping with the ede-target. Currently we create targets for each source file.
   (
    (compilation :type (or null compdb-entry) :initarg :compilation)
    (project :type ede-compdb-project :initarg :project)
    )
-)
+  "Represents a target, namely something that can be built"
+  )
 
 (defvar ede-compdb-compiler-cache nil "Cached include paths for each compiler detected")
 
@@ -154,13 +165,7 @@
 (defmethod project-compile-target ((this ede-compdb-target) &optional command)
   "Compile the current target THIS.
 Argument COMMAND is the command to use for compiling the target."
-  (project-rescan-if-needed (oref this project))
-  (let* ((entry (oref this compilation))
-         (cmd (or command (oref entry command-line)))
-         (dir (oref entry directory)))
-    ;; TODO: is there a cleaner way to set the build directory?
-    (compilation-start (format "cd %s; %s" dir cmd))
-    ))
+  (project-compile-target (oref this project) this))
 
 
 
@@ -169,7 +174,7 @@ Argument COMMAND is the command to use for compiling the target."
   (let* ((config (or config (oref this configuration-default)))
          (dirname (cdr (assoc config
                           (mapcar* #'cons (oref this configurations) (oref this configuration-directories)))))
-         (dir (and dirname (expand-file-name dirname (oref this directory)))))
+         (dir (file-name-as-directory (and dirname (expand-file-name dirname (oref this directory))))))
     (unless dir
       (error "No directory for configuration %s" config))
     (unless (and (file-exists-p dir) (file-directory-p dir))
@@ -218,7 +223,13 @@ Argument COMMAND is the command to use for compiling the target."
       (oset this :directory newprojdir)
       (when oldprojdir
         ;; TODO: is this all that is required?
-        (ede-project-directory-remove-hash oldprojdir)))
+        (ede-project-directory-remove-hash oldprojdir))
+      (dolist (t (oref this targets))
+        (when (slot-boundp t 'path)
+          (oset t :path
+                (ede-convert-path this (expand-file-name (oref t path) oldprojdir))))
+        )
+      )
     )
   )
 
@@ -274,21 +285,75 @@ Argument COMMAND is the command to use for compiling the target."
 (defmethod ede-find-target ((this ede-compdb-project) buffer)
   "Find an EDE target in THIS for BUFFER.
 If one doesn't exist, create a new one."
-  (let* ((targets (oref this targets))
-         (file (file-truename (buffer-file-name buffer)))
-         (ans (object-assoc file :path targets)))
+  (let* ((file (file-truename (buffer-file-name buffer)))
+         (ans (object-assoc file :path (oref this targets))))
     (when (not ans)
       (project-rescan-if-needed this)
-      (setq ans (ede-compdb-target file :compilation (gethash file (oref this compdb)) :project this))
+      (setq ans (ede-compdb-target (ede-convert-path this file)
+                 :path (ede-convert-path this file)
+                 :compilation (gethash file (oref this compdb))
+                 :project this))
       (object-add-to-list this :targets ans)
       )
     ans))
 
+(defmethod project-compile-target ((this ede-compdb-project) target)
+  "Build the current project using :build-command"
+  (project-rescan-if-needed this)
+  (let* ((entry (when (slot-boundp target :compilation)
+                  (oref target compilation)))
+         (cmd (if entry (oref entry command-line)
+                (concat (oref this build-command) " " (oref target name))))
+         (default-directory (if entry (oref entry directory)
+                              (current-configuration-directory this))))
+    ;; TODO: is there a cleaner way to set the build directory?
+    (compilation-start (format "cd %s; %s" default-directory cmd))))
+
 (defmethod project-compile-project ((this ede-compdb-project))
   "Build the current project using :build-command"
   (let ((default-directory (current-configuration-directory this)))
+    ;; TODO: is there a cleaner way to set the build directory?
     (compilation-start (format "cd %s; %s" default-directory (oref this build-command)))
     ))
+
+(defmethod ede-menu-items-build ((this ede-compdb-project) &optional current)
+  "Override to add a custom target menu item"
+  (append (call-next-method)
+          (list
+           [ "Build Other Target..." ede-compdb-build-target ])))
+
+(defun ede-compdb-build-target (target)
+  "Prompt for a custom target and build it in the current project"
+  (interactive
+   (let* ((proj (ede-current-project))
+          (targets (object-assoc-list 'name (cl-remove-if-not
+                                             (lambda (t) (slot-boundp t 'name)) (oref proj targets))))
+          (string (completing-read "Target: " targets nil nil nil 'ede-compdb-target-history)))
+     (list string)))
+  (let ((proj (ede-current-project)))
+    (project-compile-target proj (object-assoc target :name (oref proj targets)))))
+
+
+
+(defvar ede-ninja-target-regexp "^\\(.+\\): \\(phony\\|CLEAN\\)$")
+
+(defmethod project-rescan ((this ede-ninja-project))
+  "Get ninja to describe the set of phony targets, add them to the target list"
+  (call-next-method)
+  ;;(with-temp-buffer
+  (with-current-buffer (get-buffer-create "*ninja-targets*")
+    (let ((default-directory (current-configuration-directory this)))
+      ;; Remove all phony targets first, we are going to re-add them
+      (cl-delete-if-not (lambda (t) (slot-boundp t 'name)) (oref this targets))
+      (erase-buffer)
+      (call-process "ninja" nil t t "-t" "targets")
+      (goto-char 0)
+      (while (re-search-forward ede-ninja-target-regexp nil t)
+        (object-add-to-list this :targets
+                            (ede-compdb-target (match-string 1) :name (match-string 1) :project this)))
+      )))
+
+;;; Autoload support
 
 (defun compdb-load-project (dir)
   "Creates an ede-compdb project for DIR"

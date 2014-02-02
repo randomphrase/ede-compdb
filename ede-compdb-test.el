@@ -25,13 +25,13 @@
       (error "Error running CMake: error %d" ret)))
   )
   
-(defun cmake-build-directory-fixture (body)
+(defun cmake-build-directory-fixture (body &rest args)
   "Runs cmake in a temporary build directory"
   (temp-directory-fixture
    (lambda (builddir)
      (should (file-exists-p builddir))
      (with-current-buffer (get-buffer-create "*ede-compdb-test*")
-       (invoke-cmake ede-compdb-test-srcdir builddir)
+       (apply 'invoke-cmake (append (list ede-compdb-test-srcdir builddir) args))
        (funcall body ede-compdb-test-srcdir builddir)
        ))
    ))
@@ -144,8 +144,7 @@
              (setq ede-compdb-compiler-cache nil)
              (setq proj (ede-add-project-to-global-list 
                          (ede-compdb-project "TESTPROJ"
-                                             :directory builddir
-                                             :compdb-file "compile_commands.json"
+                                             :compdb-file (expand-file-name "compile_commands.json" builddir)
                                              :file (expand-file-name "CMakeLists.txt" testdir))))
              (should (listp ede-compdb-compiler-cache))
              
@@ -216,3 +215,27 @@
                  (should (oref ede-object compilation)))
              (kill-buffer buf))))
          ))))
+
+(ert-deftest ninja-phony-targets ()
+  "Tests that when we are using the ede-ninja-project type, the targets list is populated with phony targets"
+  ;;:expected-result :passed ;; TODO failed if we can't locate ninja on the path
+  (cmake-build-directory-fixture
+   (lambda (testdir builddir)
+     (let* ((proj (ede-ninja-project "TESTPROJ"
+                                      :compdb-file (expand-file-name "compile_commands.json" builddir)
+                                      :file (expand-file-name "CMakeLists.txt" testdir)
+                                      :build-command "ninja"))
+            (cleant (object-assoc "clean" 'name (oref proj targets))))
+       
+       (should cleant)
+       (should (not (slot-boundp cleant :path)))
+       
+       (project-compile-project proj)
+       (sleep-until-compilation-done)
+       (should (file-executable-p (expand-file-name "hello" builddir)))
+       
+       (project-compile-target cleant)
+       (sleep-until-compilation-done)
+       (should (not (file-executable-p (expand-file-name "hello" builddir))))
+       ))
+   "-G" "Ninja"))

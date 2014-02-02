@@ -9,6 +9,7 @@ Features:
 - For GCC-compatible compilers, reads the internal include paths (no need to use ~semantic-gcc-setup~)
 - Many EDE commands supported, such as "C-c . c" to build the current target (source file)
 - Autoloads based on the presence of ~compile_commands.json~ file, with no additional configuration typically required
+- (For Ninja projects only) Automatically loads and caches available build targets
 
 License: GPLv2
 
@@ -82,6 +83,14 @@ In this (admittedly complex) example, we have a possible four different types of
 #+END_SRC
 
 The ~:build-command~ attribute sets the command to be used to build the entire project. This is available using the existing EDE shortcuts (eg "C-c . C" by default). This command is run from the current configuration directory.
+
+** Ninja Build Tool
+
+The [[http://martine.github.io/ninja/][Ninja]] build tool is a great alternative to GNU Make for building large-scale projects. EDE-compdb supports some additional features when Ninja is used.
+
+Firstly, the compilation database can be generated on-demand using ~ninja -t compdb~, rather than a separate ~compile_commands.json~ file. This is currently not supported with EDE-compdb, but is planned.
+
+For now, EDE-compdb supports automatically loading the list of top-level phony projects, like "all" and "test". These are often useful during development, and EDE-compdb makes these available for use with the
 
 ** Compilation Database
 
