@@ -174,7 +174,7 @@ Argument COMMAND is the command to use for compiling the target."
   (let* ((config (or config (oref this configuration-default)))
          (dirname (cdr (assoc config
                           (mapcar* #'cons (oref this configurations) (oref this configuration-directories)))))
-         (dir (file-name-as-directory (and dirname (expand-file-name dirname (oref this directory))))))
+         (dir (and dirname (file-name-as-directory (expand-file-name dirname (oref this directory))))))
     (unless dir
       (error "No directory for configuration %s" config))
     (unless (and (file-exists-p dir) (file-directory-p dir))
