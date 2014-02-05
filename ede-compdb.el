@@ -191,47 +191,55 @@ Argument COMMAND is the command to use for compiling the target."
          (oldprojdir (when (slot-boundp this :directory) (oref this directory)))
          (newprojdir oldprojdir))
     (clrhash (oref this compdb))
-    (mapcar (lambda (entry)
-              (let* ((directory (file-name-as-directory (cdr (assoc 'directory entry))))
-                     (filename (expand-file-name (cdr (assoc 'file entry)) directory))
-                     (filetruename (file-truename filename))
-                     (command-line (cdr (assoc 'command entry)))
-                     (target (when (slot-boundp this :targets) (object-assoc filename :path (oref this targets))))
-                     (compilation
-                      (compdb-entry filename
-                                    :command-line command-line
-                                    :directory directory))
-                     (srcdir (file-name-as-directory (file-name-directory filename))))
-                ;; Add this entry to the database
-                (puthash filetruename compilation (oref this compdb))
-                ;; Update target if there is one
-                (when target
-                  (oset this :compilation compilation))
-                ;; If we haven't set a project dir, or this entry's directory is a prefix of the
-                ;; current project dir, then update the project dir
-                (when (or (not newprojdir) (string-prefix-p srcdir newprojdir))
-                  (setq newprojdir srcdir))
+    (with-temp-buffer
+      (insert-file-contents compdb-path)
+      (goto-char (point-min))
+      (let ((progress-reporter (make-progress-reporter (format "Scanning %s..." compdb-path) (point-min) (point-max))))
+        (mapcar (lambda (entry)
+                  (let* ((directory (file-name-as-directory (cdr (assoc 'directory entry))))
+                         (filename (expand-file-name (cdr (assoc 'file entry)) directory))
+                         (filetruename (file-truename filename))
+                         (command-line (cdr (assoc 'command entry)))
+                         (target (when (slot-boundp this :targets) (object-assoc filename :path (oref this targets))))
+                         (compilation
+                          (compdb-entry filename
+                                        :command-line command-line
+                                        :directory directory))
+                         (srcdir (file-name-as-directory (file-name-directory filename))))
+                    ;; Add this entry to the database
+                    (puthash filetruename compilation (oref this compdb))
+                    ;; Update target if there is one
+                    (when target
+                      (oset this :compilation compilation))
+                    ;; If we haven't set a project dir, or this entry's directory is a prefix of the
+                    ;; current project dir, then update the project dir
+                    (when (or (not newprojdir) (string-prefix-p srcdir newprojdir))
+                      (setq newprojdir srcdir))
+                    
+                    (progress-reporter-update progress-reporter (point))
                 ))
-            (json-read-file compdb-path))
-            
-    (let ((stats (file-attributes compdb-path)))
-      (oset this compdb-file-timestamp (nth 5 stats))
-      (oset this compdb-file-size (nth 7 stats)))
+                (json-read))
 
-    ;; Project may have moved to a new directory - reset if so
-    (unless (equal oldprojdir newprojdir)
-      (oset this :directory newprojdir)
-      (when oldprojdir
-        ;; TODO: is this all that is required?
-        (ede-project-directory-remove-hash oldprojdir))
-      (dolist (t (oref this targets))
-        (when (slot-boundp t 'path)
-          (oset t :path
-                (ede-convert-path this (expand-file-name (oref t path) oldprojdir))))
-        )
-      )
-    )
-  )
+        (let ((stats (file-attributes compdb-path)))
+          (oset this compdb-file-timestamp (nth 5 stats))
+          (oset this compdb-file-size (nth 7 stats)))
+
+        ;; Project may have moved to a new directory - reset if so
+        (unless (equal oldprojdir newprojdir)
+          (oset this :directory newprojdir)
+          (when oldprojdir
+            ;; TODO: is this all that is required?
+            (ede-project-directory-remove-hash oldprojdir))
+          (dolist (t (oref this targets))
+            (when (slot-boundp t 'path)
+              (oset t :path
+                    (ede-convert-path this (expand-file-name (oref t path) oldprojdir))))
+            )
+          )
+
+        (progress-reporter-done progress-reporter)
+        ))
+    ))
 
 (defmethod project-rescan-if-needed ((this ede-compdb-project))
   "Reload the compilation database if the corresponding watch file has changed."
@@ -347,10 +355,13 @@ If one doesn't exist, create a new one."
       (cl-delete-if-not (lambda (t) (slot-boundp t 'name)) (oref this targets))
       (erase-buffer)
       (call-process "ninja" nil t t "-t" "targets")
-      (goto-char 0)
-      (while (re-search-forward ede-ninja-target-regexp nil t)
-        (object-add-to-list this :targets
-                            (ede-compdb-target (match-string 1) :name (match-string 1) :project this)))
+      (let ((progress-reporter (make-progress-reporter "Scanning targets..." (point-min) (point-max))))
+        (goto-char 0)
+        (while (re-search-forward ede-ninja-target-regexp nil t)
+          (object-add-to-list this :targets
+                              (ede-compdb-target (match-string 1) :name (match-string 1) :project this))
+          (progress-reporter-update progress-reporter (point))
+          ))
       )))
 
 ;;; Autoload support
