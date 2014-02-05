@@ -89,6 +89,12 @@
                (should (eq proj (ede-current-project)))
                (should (oref ede-object compilation))
 
+               ;; Include path should include certain dirs:
+               (let ((P (ede-system-include-path ede-object)))
+                 (should (member (expand-file-name "world" testdir) P))
+                 (should (member builddir P))
+                 )
+
                ;; Should have been parsed
                (should (semantic-active-p))
                (should (not semantic-parser-warnings))

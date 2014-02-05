@@ -137,10 +137,14 @@ from the command line (which is most of them!)"
   (let ((comp (oref this compilation)))
     (when comp
       (parse-command-line-if-needed comp)
-      (mapcar
-       (lambda (I)
-         (expand-file-name I (file-name-directory (buffer-file-name))))
-       (oref comp include-path)))))
+      (append
+       (mapcar
+        (lambda (I)
+          (expand-file-name I (file-name-directory (buffer-file-name))))
+        (oref comp include-path))
+       (list (oref comp directory))
+       ))
+    ))
 
 (defmethod ede-preprocessor-map ((this ede-compdb-target))
   "Get the preprocessor map for target THIS."
