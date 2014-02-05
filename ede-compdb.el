@@ -60,6 +60,9 @@
    (build-command
     :type string :initarg :build-command :initform "ninja"
     :documentation "A shell command to build the entire project. Invoked from the configuration directory.")
+   (phony-targets
+    :type list :initform '()
+    :documentation "Phony targets which ninja can build")
    )
   "Variant of ede-compdb-project, extended to take advantage of the ninja build tool."
 )
@@ -319,10 +322,11 @@ If one doesn't exist, create a new one."
 (defmethod project-compile-target ((this ede-compdb-project) target)
   "Build the current project using :build-command"
   (project-rescan-if-needed this)
-  (let* ((entry (when (slot-boundp target :compilation)
+  (let* ((entry (when (and (ede-compdb-target-p target) (slot-boundp target :compilation))
                   (oref target compilation)))
          (cmd (if entry (get-command-line entry)
-                (concat (oref this build-command) " " (oref target name))))
+                (concat (oref this build-command) " "
+                        (if (ede-compdb-target-p target) (oref target name) target))))
          (default-directory (if entry (oref entry directory)
                               (current-configuration-directory this))))
     ;; TODO: is there a cleaner way to set the build directory?
@@ -345,12 +349,11 @@ If one doesn't exist, create a new one."
   "Prompt for a custom target and build it in the current project"
   (interactive
    (let* ((proj (ede-current-project))
-          (targets (object-assoc-list 'name (cl-remove-if-not
-                                             (lambda (t) (slot-boundp t 'name)) (oref proj targets))))
+          (targets (oref proj phony-targets))
           (string (completing-read "Target: " targets nil nil nil 'ede-compdb-target-history)))
      (list string)))
   (let ((proj (ede-current-project)))
-    (project-compile-target proj (object-assoc target :name (oref proj targets)))))
+    (project-compile-target proj target)))
 
 
 
@@ -362,15 +365,14 @@ If one doesn't exist, create a new one."
   ;;(with-temp-buffer
   (with-current-buffer (get-buffer-create "*ninja-targets*")
     (let ((default-directory (current-configuration-directory this)))
-      ;; Remove all phony targets first, we are going to re-add them
-      (cl-delete-if-not (lambda (t) (slot-boundp t 'name)) (oref this targets))
+      (oset this phony-targets nil)
       (erase-buffer)
       (call-process "ninja" nil t t "-t" "targets")
       (let ((progress-reporter (make-progress-reporter "Scanning targets..." (point-min) (point-max))))
         (goto-char 0)
         (while (re-search-forward ede-ninja-target-regexp nil t)
-          (object-add-to-list this :targets
-                              (ede-compdb-target (match-string 1) :name (match-string 1) :project this))
+          ;; Don't use object-add-to-list, it is too slow
+          (oset this phony-targets (cons (match-string 1) (oref this phony-targets)))
           (progress-reporter-update progress-reporter (point))
           ))
       )))

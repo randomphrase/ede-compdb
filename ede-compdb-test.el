@@ -225,17 +225,13 @@
      (let* ((proj (ede-ninja-project "TESTPROJ"
                                       :compdb-file (expand-file-name "compile_commands.json" builddir)
                                       :file (expand-file-name "CMakeLists.txt" testdir)
-                                      :build-command "ninja"))
-            (cleant (object-assoc "clean" 'name (oref proj targets))))
-       
-       (should cleant)
-       (should (not (slot-boundp cleant :path)))
+                                      :build-command "ninja")))
        
        (project-compile-project proj)
        (sleep-until-compilation-done)
        (should (file-executable-p (expand-file-name "hello" builddir)))
        
-       (project-compile-target cleant)
+       (project-compile-target proj "clean")
        (sleep-until-compilation-done)
        (should (not (file-executable-p (expand-file-name "hello" builddir))))
        ))
