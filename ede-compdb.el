@@ -86,44 +86,54 @@
       (add-to-list 'ede-compdb-compiler-cache (cons comp path)))
     path))
 
-(defmethod initialize-instance :AFTER ((this compdb-entry) &rest fields)
+(defmethod get-command-line ((this compdb-entry))
+  ;; TODO: Can this be replaced by an :accessor slot option?
+  (parse-command-line-if-needed this)
+  (oref this command-line))
 
+(defmethod parse-command-line-if-needed ((this compdb-entry))
+  "For performance reasons we delay parsing the compdb command
+line until needed. Call this before accessing any slots derived
+from the command line (which is most of them!)"
   ;; parse the command line if needed - compiler slot is used to determine whether we need to
   (unless (slot-boundp this :compiler)
-    ;; parsing code inspired by `command-line'
-    (let ((args (split-string (oref this command-line)))
-          (seenopt nil)
-          (case-fold-search nil))
-      (while args
-        (let ((argi (pop args)) argval defval)
-          ;; Handle -DFOO, -UFOO, etc arguments
-          (when (string-match "\\`\\(-[DUIF]\\)\\([^=]+\\)\\(=\\(.+\\)\\)?" argi)
-            (setq argval (match-string 2 argi))
-            (setq defval (match-string 4 argi))
-            (setq argi (match-string 1 argi)))
-          (cond
-           ((equal argi "-D") (object-add-to-list this :defines (cons (or argval (pop args)) defval) t))
-           ((equal argi "-U") (object-add-to-list this :undefines (or argval (pop args)) t))
-           ((member argi '("-I" "-F")) (object-add-to-list this :include-path (or argval (pop args)) t))
-           ((equal argi "-include") (object-add-to-list this :includes (pop args) t))
-           ;; TODO: -nostdinc, -nostdlibinc, -nobuildinic
-           ((not seenopt) (oset this compiler (if (slot-boundp this :compiler) (concat (oref this compiler) " " argi) argi)))
-           )
-          (when (char-equal ?- (string-to-char argi))
-            (setq seenopt t)
-            )))
-      
-      (let ((cpath (ede-compdb-compiler-include-path (oref this compiler))))
-        (when cpath
-          (object-add-to-list this :include-path cpath t)))
-      ))
-)
+    (parse-command-line this)))
+
+(defmethod parse-command-line ((this compdb-entry))
+  ;; parsing code inspired by `command-line'
+  (let ((args (split-string (oref this command-line)))
+        (seenopt nil)
+        (case-fold-search nil))
+    (while args
+      (let ((argi (pop args)) argval defval)
+        ;; Handle -DFOO, -UFOO, etc arguments
+        (when (string-match "\\`\\(-[DUIF]\\)\\([^=]+\\)\\(=\\(.+\\)\\)?" argi)
+          (setq argval (match-string 2 argi))
+          (setq defval (match-string 4 argi))
+          (setq argi (match-string 1 argi)))
+        (cond
+         ((equal argi "-D") (object-add-to-list this :defines (cons (or argval (pop args)) defval) t))
+         ((equal argi "-U") (object-add-to-list this :undefines (or argval (pop args)) t))
+         ((member argi '("-I" "-F")) (object-add-to-list this :include-path (or argval (pop args)) t))
+         ((equal argi "-include") (object-add-to-list this :includes (pop args) t))
+         ;; TODO: -nostdinc, -nostdlibinc, -nobuildinic
+         ((not seenopt) (oset this compiler (if (slot-boundp this :compiler) (concat (oref this compiler) " " argi) argi)))
+         )
+        (when (char-equal ?- (string-to-char argi))
+          (setq seenopt t)
+          )))
+    
+    (let ((cpath (ede-compdb-compiler-include-path (oref this compiler))))
+      (when cpath
+        (object-add-to-list this :include-path cpath t)))
+    ))
 
 (defmethod ede-system-include-path ((this ede-compdb-target))
   "Get the system include path used by project THIS."
   (project-rescan-if-needed (oref this project))
   (let ((comp (oref this compilation)))
     (when comp
+      (parse-command-line-if-needed comp)
       (mapcar
        (lambda (I)
          (expand-file-name I (file-name-directory (buffer-file-name))))
@@ -135,6 +145,7 @@
   (project-rescan-if-needed (oref this project))
 
   (when (oref this compilation)
+    (parse-command-line-if-needed (oref this compilation))
     ;; Stolen from cpp-root
     (require 'semantic/db)
     (let ((spp (oref (oref this compilation) defines)))
@@ -310,7 +321,7 @@ If one doesn't exist, create a new one."
   (project-rescan-if-needed this)
   (let* ((entry (when (slot-boundp target :compilation)
                   (oref target compilation)))
-         (cmd (if entry (oref entry command-line)
+         (cmd (if entry (get-command-line entry)
                 (concat (oref this build-command) " " (oref target name))))
          (default-directory (if entry (oref entry directory)
                               (current-configuration-directory this))))

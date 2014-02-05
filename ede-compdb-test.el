@@ -55,6 +55,7 @@
           (setq f (compdb-entry "foo.cpp" :command-line
                                 "clang -Dfoo -Dbar=baz -Uqux -I/opt/local/include -Iincludes -include bar.hpp main.cpp"))
 
+          (parse-command-line-if-needed f)
           (should (equal "clang" (oref f compiler)))
           (should (equal '(("foo") ("bar" . "baz")) (oref f defines)))
           (should (equal '("qux") (oref f undefines)))
