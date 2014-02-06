@@ -203,6 +203,10 @@ Argument COMMAND is the command to use for compiling the target."
   "Returns a full path to the current compdb file"
   (expand-file-name (oref this compdb-file) (current-configuration-directory this)))
 
+(defmethod insert-compdb ((this ede-compdb-project) compdb-path)
+  "Inserts the compilation database into the current buffer"
+  (insert-file-contents compdb-path))
+
 (defmethod project-rescan ((this ede-compdb-project))
   "Reload the compilation database."
   (let* ((compdb-path (current-compdb-path this))
@@ -210,54 +214,49 @@ Argument COMMAND is the command to use for compiling the target."
          (newprojdir oldprojdir))
     (clrhash (oref this compdb))
     (with-temp-buffer
-      (insert-file-contents compdb-path)
+      (insert-compdb this compdb-path)
       (goto-char (point-min))
-      (let ((progress-reporter (make-progress-reporter (format "Scanning %s..." compdb-path) (point-min) (point-max))))
-        (mapcar (lambda (entry)
-                  (let* ((directory (file-name-as-directory (cdr (assoc 'directory entry))))
-                         (filename (expand-file-name (cdr (assoc 'file entry)) directory))
-                         (filetruename (file-truename filename))
-                         (command-line (cdr (assoc 'command entry)))
-                         (target (when (slot-boundp this :targets) (object-assoc filename :path (oref this targets))))
-                         (compilation
-                          (compdb-entry filename
-                                        :command-line command-line
-                                        :directory directory))
-                         (srcdir (file-name-as-directory (file-name-directory filename))))
-                    ;; Add this entry to the database
-                    (puthash filetruename compilation (oref this compdb))
-                    ;; Update target if there is one
-                    (when target
-                      (oset this :compilation compilation))
-                    ;; If we haven't set a project dir, or this entry's directory is a prefix of the
-                    ;; current project dir, then update the project dir
-                    (when (or (not newprojdir) (string-prefix-p srcdir newprojdir))
-                      (setq newprojdir srcdir))
-                    
-                    (progress-reporter-update progress-reporter (point))
-                ))
-                (json-read))
+      (mapcar (lambda (entry)
+                (let* ((directory (file-name-as-directory (cdr (assoc 'directory entry))))
+                       (filename (expand-file-name (cdr (assoc 'file entry)) directory))
+                       (filetruename (file-truename filename))
+                       (command-line (cdr (assoc 'command entry)))
+                       (target (when (slot-boundp this :targets) (object-assoc filename :path (oref this targets))))
+                       (compilation
+                        (compdb-entry filename
+                                      :command-line command-line
+                                      :directory directory))
+                       (srcdir (file-name-as-directory (file-name-directory filename))))
+                  ;; Add this entry to the database
+                  (puthash filetruename compilation (oref this compdb))
+                  ;; Update target if there is one
+                  (when target
+                    (oset this :compilation compilation))
+                  ;; If we haven't set a project dir, or this entry's directory is a prefix of the
+                  ;; current project dir, then update the project dir
+                  (when (or (not newprojdir) (string-prefix-p srcdir newprojdir))
+                    (setq newprojdir srcdir))
+                  ))
+              (json-read)))
+            
+    (let ((stats (file-attributes compdb-path)))
+      (oset this compdb-file-timestamp (nth 5 stats))
+      (oset this compdb-file-size (nth 7 stats)))
 
-        (let ((stats (file-attributes compdb-path)))
-          (oset this compdb-file-timestamp (nth 5 stats))
-          (oset this compdb-file-size (nth 7 stats)))
-
-        ;; Project may have moved to a new directory - reset if so
-        (unless (equal oldprojdir newprojdir)
-          (oset this :directory newprojdir)
-          (when oldprojdir
-            ;; TODO: is this all that is required?
-            (ede-project-directory-remove-hash oldprojdir))
-          (dolist (t (oref this targets))
-            (when (slot-boundp t 'path)
-              (oset t :path
-                    (ede-convert-path this (expand-file-name (oref t path) oldprojdir))))
-            )
-          )
-
-        (progress-reporter-done progress-reporter)
-        ))
-    ))
+    ;; Project may have moved to a new directory - reset if so
+    (unless (equal oldprojdir newprojdir)
+      (oset this :directory newprojdir)
+      (when oldprojdir
+        ;; TODO: is this all that is required?
+        (ede-project-directory-remove-hash oldprojdir))
+      (dolist (t (oref this targets))
+        (when (slot-boundp t 'path)
+          (oset t :path
+                (ede-convert-path this (expand-file-name (oref t path) oldprojdir))))
+        )
+      )
+    )
+  )
 
 (defmethod project-rescan-if-needed ((this ede-compdb-project))
   "Reload the compilation database if the corresponding watch file has changed."
@@ -366,8 +365,7 @@ If one doesn't exist, create a new one."
 (defmethod project-rescan ((this ede-ninja-project))
   "Get ninja to describe the set of phony targets, add them to the target list"
   (call-next-method)
-  ;;(with-temp-buffer
-  (with-current-buffer (get-buffer-create "*ninja-targets*")
+  (with-temp-buffer
     (let ((default-directory (current-configuration-directory this)))
       (oset this phony-targets nil)
       (erase-buffer)
@@ -380,6 +378,11 @@ If one doesn't exist, create a new one."
           (progress-reporter-update progress-reporter (point))
           ))
       )))
+
+(defmethod insert-compdb ((this ede-ninja-project) compdb-path)
+  "Use ninja's compdb tool to insert the compilation database into the current buffer"
+  (let ((default-directory (file-name-directory compdb-path)))
+    (call-process "ninja" nil t nil "-t" "compdb" "CXX_COMPILER" "C_COMPILER")))
 
 ;;; Autoload support
 
