@@ -16,22 +16,26 @@
         (delete-directory builddir t)
         (ede-flush-deleted-projects)))))
 
-(defun invoke-cmake (srcdir builddir &rest args)
-  "Invokes cmake on the SRCDIR to build into BUILDDIR"
+(defun invoke-cmake (gencompdb srcdir builddir &rest args)
+  "Invokes cmake on the SRCDIR to build into BUILDDIR with
+ARGS. If GENCOMPDB is non-nill, a compilation database will be
+generated"
   (erase-buffer)
   (let* ((default-directory builddir)
-         (ret (apply 'call-process (append '("cmake" nil t t "-DCMAKE_EXPORT_COMPILE_COMMANDS=1") args (list srcdir)))))
+         (ret (apply 'call-process (append '("cmake" nil t t)
+                                           (when gencompdb (list "-DCMAKE_EXPORT_COMPILE_COMMANDS=1"))
+                                           args (list srcdir)))))
     (when (> 0 ret)
       (error "Error running CMake: error %d" ret)))
   )
   
-(defun cmake-build-directory-fixture (body &rest args)
+(defun cmake-build-directory-fixture (gencompdb body &rest args)
   "Runs cmake in a temporary build directory"
   (temp-directory-fixture
    (lambda (builddir)
      (should (file-exists-p builddir))
      (with-current-buffer (get-buffer-create "*ede-compdb-test*")
-       (apply 'invoke-cmake (append (list ede-compdb-test-srcdir builddir) args))
+       (apply 'invoke-cmake (append (list gencompdb ede-compdb-test-srcdir builddir) args))
        (funcall body ede-compdb-test-srcdir builddir)
        ))
    ))
@@ -42,6 +46,20 @@
     (while comp-proc
       (sleep-for 1)
       (setq comp-proc (get-buffer-process comp-buf)))))
+
+(defun insource-build-fixture (gencompdb body &rest args)
+  "Sets up a source tree in a temporary directory for an
+in-source build"
+  (temp-directory-fixture
+   (lambda (builddir)
+     ;; To keep the source directory clean, we'll copy the test project into the temp directory
+     (copy-directory ede-compdb-test-srcdir builddir)
+     (let ((srcdir (file-name-as-directory (concat builddir "test"))))
+       (apply 'invoke-cmake (append (list gencompdb "." srcdir) args))
+       (funcall body srcdir)
+       ))
+   ))
+
 
 
 (ert-deftest parse-command-line ()
@@ -67,7 +85,7 @@
 (ert-deftest open-file-parsed ()
   "Tests the parsing of a source file. We ensure it correctly locates all include files."
   ;;:expected-result :passed ;; TODO failed if we can't locate cmake on the path
-  (cmake-build-directory-fixture
+  (cmake-build-directory-fixture t
    (lambda (testdir builddir)
      (let ((proj (ede-add-project-to-global-list
                   (ede-compdb-project "TESTPROJ"
@@ -92,7 +110,7 @@
                ;; Include path should include certain dirs:
                (let ((P (ede-system-include-path ede-object)))
                  (should (member (expand-file-name "world" testdir) P))
-                 (should (member builddir P))
+                 (should (member (file-truename builddir) P))
                  )
 
                ;; Should have been parsed
@@ -142,7 +160,7 @@
 
 (ert-deftest compiler-include-path-cache ()
   "Tests that the compiler include paths are detected."
-  (cmake-build-directory-fixture
+  (cmake-build-directory-fixture t
    (lambda (testdir builddir)
      (let ((savedcache ede-compdb-compiler-cache)
            (proj nil))
@@ -179,8 +197,8 @@
        (make-directory reldir)
 
        (with-temp-buffer
-         (invoke-cmake ede-compdb-test-srcdir dbgdir "-DCMAKE_BUILD_TYPE=Debug")
-         (invoke-cmake ede-compdb-test-srcdir reldir "-DCMAKE_BUILD_TYPE=Release")
+         (invoke-cmake t ede-compdb-test-srcdir dbgdir "-DCMAKE_BUILD_TYPE=Debug")
+         (invoke-cmake t ede-compdb-test-srcdir reldir "-DCMAKE_BUILD_TYPE=Release")
 
          (let ((proj (ede-compdb-project
                       "TESTPROJ"
@@ -203,33 +221,49 @@
 
 (ert-deftest autoload-project ()
   "Tests that we can autoload a project depending on the presence of a compilation database file"
-  (temp-directory-fixture
-   (lambda (builddir)
-     ;; To keep the source directory clean, we'll copy the test project into the temp directory
-     (copy-directory ede-compdb-test-srcdir builddir)
+  (insource-build-fixture
+   t
+   (lambda (dir)
+     (dolist (f '("hello.cpp" "world/world.cpp"))
+       (let* ((hellocpp (expand-file-name f dir))
+              (buf (find-file-noselect hellocpp)))
+         (unwind-protect
+             (with-current-buffer buf
+               ;; Should have set up the current project and target
+               (should (ede-current-project))
+               (should ede-object)
+               (should (oref ede-object compilation)))
+           (kill-buffer buf)))))
+   ))
 
-     (let ((srcdir (file-name-as-directory (concat builddir "test"))))
-       (invoke-cmake "." srcdir)
-
-       (dolist (f '("hello.cpp" "world/world.cpp"))
-         (let* ((hellocpp (expand-file-name f srcdir))
-                (buf (find-file-noselect hellocpp)))
-           (unwind-protect
-               (with-current-buffer buf
-                 ;; Should have set up the current project and target
-                 (should (ede-current-project))
-                 (should ede-object)
-                 (should (oref ede-object compilation)))
-             (kill-buffer buf))))
-         ))))
+(ert-deftest ninja-autoload-project ()
+  "Tests autoloading of ninja projects when rules.ninja files are discovered"
+  ;;:expected-result :passed ;; TODO failed if we can't locate ninja on the path
+  (insource-build-fixture
+   nil
+   (lambda (dir)
+     (dolist (f '("hello.cpp" "world/world.cpp"))
+       (let* ((hellocpp (expand-file-name f dir))
+              (buf (find-file-noselect hellocpp)))
+         (unwind-protect
+             (with-current-buffer buf
+               ;; Should have set up the current project and target
+               (should (ede-current-project))
+               (should ede-object)
+               (should (oref ede-object compilation)))
+           (kill-buffer buf))))
+     )
+   "-G" "Ninja"))
+     
 
 (ert-deftest ninja-phony-targets ()
   "Tests that when we are using the ede-ninja-project type, the targets list is populated with phony targets"
   ;;:expected-result :passed ;; TODO failed if we can't locate ninja on the path
   (cmake-build-directory-fixture
+   t
    (lambda (testdir builddir)
      (let* ((proj (ede-ninja-project "TESTPROJ"
-                                      :compdb-file (expand-file-name "compile_commands.json" builddir)
+                                      :compdb-file (expand-file-name "build.ninja" builddir)
                                       :file (expand-file-name "CMakeLists.txt" testdir)
                                       :build-command "ninja")))
        

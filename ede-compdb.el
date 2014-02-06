@@ -383,21 +383,38 @@ If one doesn't exist, create a new one."
 
 ;;; Autoload support
 
-(defun compdb-load-project (dir)
+(defun ede-compdb-load-project (dir)
   "Creates an ede-compdb project for DIR"
   ;; TODO: Other project types keep their own cache of active projects - do we need to as well?
   (ede-add-project-to-global-list
    (ede-compdb-project (file-name-nondirectory (directory-file-name dir))
                        :compdb-file "compile_commands.json"
                        :directory (file-name-as-directory dir))))
+
+(defun ede-ninja-load-project (dir)
+  "Creates an ede-ninja project for DIR"
+  ;; TODO: Other project types keep their own cache of active projects - do we need to as well?
+  (ede-add-project-to-global-list
+   (ede-ninja-project (file-name-nondirectory (directory-file-name dir))
+                      :compdb-file "build.ninja"
+                      :directory (file-name-as-directory dir))))
                  
 ;;;###autoload
 (ede-add-project-autoload
  (ede-project-autoload "compdb"
                        :file 'ede-compdb
                        :proj-file "compile_commands.json"
-                       :load-type 'compdb-load-project
-                       :class-sym 'ede-compdb-project)
- 'unique)
+                       :load-type 'ede-compdb-load-project
+                       :class-sym 'ede-compdb-project))
+ ;;'unique)
+
+;;;###autoload
+(ede-add-project-autoload
+ (ede-project-autoload "ninja"
+                       :file 'ede-compdb
+                       :proj-file "build.ninja"
+                       :load-type 'ede-ninja-load-project
+                       :class-sym 'ede-ninja-project))
+ ;;'unique)
 
 (provide 'ede-compdb)
