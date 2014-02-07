@@ -354,7 +354,8 @@ If one doesn't exist, create a new one."
     ans))
 
 (defmethod project-compile-target ((this ede-compdb-project) target)
-  "Build the current project using :build-command"
+  "Build TARGET using :build-command. TARGET may be an instance
+of `ede-compdb-target' or a string."
   (project-rescan-if-needed this)
   (let* ((entry (when (and (ede-compdb-target-p target) (slot-boundp target :compilation))
                   (oref target compilation)))
@@ -363,14 +364,13 @@ If one doesn't exist, create a new one."
                         (if (ede-compdb-target-p target) (oref target name) target))))
          (default-directory (if entry (oref entry directory)
                               (current-configuration-directory this))))
-    ;; TODO: is there a cleaner way to set the build directory?
-    (compilation-start (format "cd %s; %s" default-directory cmd))))
+    (compilation-start cmd)
+    ))
 
 (defmethod project-compile-project ((this ede-compdb-project))
   "Build the current project using :build-command"
   (let ((default-directory (current-configuration-directory this)))
-    ;; TODO: is there a cleaner way to set the build directory?
-    (compilation-start (format "cd %s; %s" default-directory (oref this build-command)))
+    (compilation-start (oref this build-command))
     ))
 
 (defmethod ede-menu-items-build ((this ede-compdb-project) &optional current)
