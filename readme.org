@@ -9,7 +9,8 @@ Features:
 - For GCC-compatible compilers, reads the internal include paths (no need to use ~semantic-gcc-setup~)
 - Many EDE commands supported, such as "C-c . c" to build the current target (source file)
 - Autoloads based on the presence of ~compile_commands.json~ file, with no additional configuration typically required
-- (For Ninja projects only) Automatically loads and caches available build targets
+- Supports multiple build configurations (eg Debug, Release) and corresponding build directories
+- (For Ninja projects only) Automatically generates the compilation database, and loads and caches available phony build targets
 
 License: GPLv2
 
@@ -30,13 +31,15 @@ $ cmake -DCMAKE_EXPORT_COMPILE_COMMANDS=TRUE .
 
 This will generate build files in the source directory, as well as a ~compile_commands.json~ file, which is the compilation database.
 
+Note that if you are using the [[http://martine.github.io/ninja/][Ninja build tool]], you don't need to generate the ~compile_commands.json~ file, because the compilation database will be generated dynamically.
+
 Now open any of your source files in emacs, and you should see all the includes correctly parsed. Be aware that due to a limitation in the current CEDET, if you use "Summarize includes current buffer" you will *NOT* see the project include path for the current source file.
 
 ** Build Directories
 
 The quickstart example above assumes that you are building your binaries into the same directory. By default, EDE-compdb projects are loaded when a ~compile_commands.json~ file is found in the current directory, or in a parent directory. If you build your projects in the same directory as your source, no additional configuration is required.
 
-However, EDE-compdb can be configured to use a separate build directory, or even multiple build directories. This is desirable when developing for multiple configurations (eg a debug build for feature development, and a release build for performance/integration testing).
+However, EDE-compdb can be configured to use a separate build directory, or even multiple build directories. This is desirable when developing for multiple configurations (eg a debug build for feature development, and a release build for performance/integration testing). Furthermore, the build directories can be either "in-source" or "out-of-source", meaning they can be subdirectories of your project source tree, or not.
 
 In this (admittedly complex) example, we have a possible four different types of build for each project. Each build type is assigned a separate directory, relative to the project root. At load time, we examine the project to see which, if any, of the build directories is present. This directory is selected as the build directory, and additionally we set the ~:configuration-default~ to the corresponding value.
 
@@ -88,9 +91,9 @@ The ~:build-command~ attribute sets the command to be used to build the entire p
 
 The [[http://martine.github.io/ninja/][Ninja]] build tool is a great alternative to GNU Make for building large-scale projects. EDE-compdb supports some additional features when Ninja is used.
 
-Firstly, the compilation database can be generated on-demand using ~ninja -t compdb~, rather than a separate ~compile_commands.json~ file. This is currently not supported with EDE-compdb, but is planned.
+Firstly, the compilation database is generated on-demand using ~ninja -t compdb~, rather than a separate ~compile_commands.json~ file.
 
-For now, EDE-compdb supports automatically loading the list of top-level phony projects, like "all" and "test". These are often useful during development, and EDE-compdb makes these available for use with the
+Also, EDE-compdb supports automatically loading the list of top-level phony projects, like "all" and "test". These are often useful during development, and EDE-compdb makes these available for use via a ~ede-compdb-build-target~ command, also available from the "Build Other Target..." menu item. This is useful for building phony targets you may have set up such as "all" or "test". These phony targets are queried using ~ninja -t targets~ and cached per-project.
 
 ** Compilation Database
 
@@ -111,21 +114,21 @@ When CEDET is able to use the information in a compilation database, it signific
 So how is the compilation database generated? Several methods are possible:
 
 - For CMake-based projects using the GNU Make build tool, there is the ~CMAKE_EXPORT_COMPILE_COMMANDS~ option (described above) which tells CMake to write out a ~compile_commands.json~ file along with the generated Makefiles in the build directory. This file contains the entire compilation database for the project.
-- For projects using the [[http://martine.github.io/ninja/][Ninja build tool]], the compilation database can be generated on-demand using the "-t compdb" command, either for the entire project, or for a specific source file. This is currently not supported with ede-compdb, but is planned.
+- For projects using the [[http://martine.github.io/ninja/][Ninja build tool]], the compilation database can be generated on-demand using the ~-t compdb~ command.
 - The [[https://github.com/rizsotto/Bear][Build EAR]] (Bear) tool can generate a compilation database from any build system by sniffing the compiler commands as they are executed.
 
 Use of the compilation database is becoming more and more common, particularly for those projects using the clang toolset.
 
 ** Development
 
-There is an ert test suite which uses a sample CMake project, with a temporary directory as a build directory. CMake and a C++ compiler is required to run these tests successfully.
+There is an ert test suite which uses a sample CMake project, with a temporary directory as a build directory. CMake, Ninja and a C++ compiler are required to run these tests successfully.
 
 ** Current limitations/TODOs:
 
 - As stated above, if you use "Summarize includes current buffer" you will *NOT* see the system include path for the buffer. The reason is that the include path is set on the target, and not on the project. However, the summarize function only prints out the system include path for the project, and not the target. You can of course use ~(ede-system-include-path ede-object)~ to check the include path instead.
 
+- Project files which are not explicitly in the compilation database may not be parsed correctly. For example, header files are not generally compiled independently, hence are not generally inserted into the compilation database. This means that although header files are still detected as part of the project, are not assigned the include paths and preprocessor symbols which are available to source files. The plan to fix this is to provide a mechanism for header files to be "matched" with a corresponding source file, from which they can attach a compilation database entry.
+
 - It only does very basic parsing of the GCC (or compatible) command line options, and doesn't support any of the more esoteric GCC-specfic ones such as "-imacros", "-idirafter", "-iprefix", etc.
 
 - Currently uses the json module for loading the compilation database. We'll keep an eye on this to see what the performance is like, but it looks OK so far.
-
-- Calculating the preprocessor directives for a header file is not supported yet. I guess the solution here would be to look up a source file which includes the file in the current project, and use that include path. For example if you were trying to parse "foo.hpp", you might look up "foo.cpp" in the compilation database and use that compilation database entry to parse the .hpp file.
