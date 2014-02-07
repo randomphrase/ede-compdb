@@ -330,7 +330,7 @@ Argument COMMAND is the command to use for compiling the target."
   ;; Rescan if compdb exists
   (if (file-exists-p (current-compdb-path this))
       (project-rescan this)
-    (message "Could not open %s" (current-compdb-path this)))
+    (message "Error reading Compilation Database: %s not found" (current-compdb-path this)))
   )
 
 (defmethod ede-find-subproject-for-directory ((proj ede-compdb-project)
