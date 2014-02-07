@@ -211,6 +211,25 @@ Argument COMMAND is the command to use for compiling the target."
   "Inserts the compilation database into the current buffer"
   (insert-file-contents compdb-path))
 
+(defmethod compdb-entry-for-buffer ((this ede-compdb-project))
+  "Returns an instance of ede-compdb-entry suitable for use with
+the current buffer. In general, we do a lookup on the current
+buffer file in the compdb hashtable. If not present, we do a
+lookup on the filename calculated from `ff-other-file-name'."
+  (require 'find-file)
+  (let ((ret (gethash (file-truename (buffer-file-name)) (oref this compdb)))
+        (ignore ff-ignore-include)
+        other-name)
+    (or ret
+        (progn
+          (setq ff-ignore-include t)
+          (setq other-name (ff-other-file-name))
+          (when other-name
+            (setq ret (gethash (file-truename other-name) (oref this compdb))))
+          (setq ff-ignore-include ignore)
+          ret))
+    ))
+
 (defmethod project-rescan ((this ede-compdb-project))
   "Reload the compilation database."
   (clrhash (oref this compdb))
@@ -271,11 +290,13 @@ Argument COMMAND is the command to use for compiling the target."
         ;; TODO: is this all that is required?
         (ede-project-directory-remove-hash oldprojdir)))
 
-    ;; Update all targets
+    ;; Update all remaining targets
     (dolist (T (oref this targets))
+
       ;; Update compilation
       (when (slot-boundp T :compilation)
-        (oset T :compilation (gethash (file-truename (expand-file-name (oref T :path) oldprojdir)) (oref this compdb))))
+        (with-current-buffer (get-file-buffer (expand-file-name (oref T :path) oldprojdir))
+          (oset T :compilation (compdb-entry-for-buffer this))))
 
       (when (and (not (equal oldprojdir newprojdir)) (slot-boundp T 'path))
         (oset T :path (ede-convert-path this (expand-file-name (oref T path) oldprojdir))))
@@ -339,14 +360,16 @@ Argument COMMAND is the command to use for compiling the target."
 (defmethod ede-find-target ((this ede-compdb-project) buffer)
   "Find an EDE target in THIS for BUFFER.
 If one doesn't exist, create a new one."
-  (let* ((file (file-truename (buffer-file-name buffer)))
+  (let* ((file (file-truename (buffer-file-name buffer))) ; FIXME: not right - use ede-convert-path
          (ans (object-assoc file :path (oref this targets))))
     (when (not ans)
       (project-rescan-if-needed this)
-      (setq ans (ede-compdb-target (ede-convert-path this file)
-                 :path (ede-convert-path this file)
-                 :compilation (gethash file (oref this compdb))
-                 :project this))
+      (with-current-buffer buffer
+        (setq ans (ede-compdb-target
+                   (ede-convert-path this file)
+                   :path (ede-convert-path this file)
+                   :compilation (compdb-entry-for-buffer this)
+                   :project this)))
       (object-add-to-list this :targets ans)
       )
     ans))

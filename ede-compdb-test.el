@@ -118,6 +118,7 @@ in-source build"
                                       :compdb-file (expand-file-name "compile_commands.json" builddir)
                                       :file (expand-file-name "CMakeLists.txt" testdir))))
            (hellocpp (expand-file-name "hello.cpp" testdir))
+           (worldcpp (expand-file-name "world/world.cpp" testdir))
            (testbufs nil))
 
        ;; Basic sanity checks on the project itself
@@ -161,7 +162,7 @@ in-source build"
                  ))
 
              ;; Try a file in a subdirectory
-             (let ((buf (find-file-noselect (expand-file-name "world/world.cpp" testdir))))
+             (let ((buf (find-file-noselect worldcpp)))
                (setq testbufs (cons buf testbufs))
                (with-current-buffer buf
                  ;; Should have set up the current project and target with compilation
@@ -174,12 +175,15 @@ in-source build"
                  ))
 
              ;; Try a header file
-             (let ((buf (find-file-noselect (expand-file-name "config.hpp" testdir))))
+             (let ((buf (find-file-noselect (expand-file-name "world/world.hpp" testdir))))
                (setq testbufs (cons buf testbufs))
                (with-current-buffer buf
-                 ;; Should have set up the current project and target - but no compilation (yet!)
+                 ;; Should have set up the current project
+                 (should ede-object)
                  (should (eq proj (ede-current-project)))
-                 (should (not (oref ede-object compilation)))
+                 ;; Compilation should be pointed to world.cpp
+                 (should (eq (oref ede-object compilation)
+                             (gethash (file-truename worldcpp) (oref proj compdb))))
                  ))
              
              ;; Try a generated source file
