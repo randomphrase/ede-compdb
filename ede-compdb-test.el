@@ -109,7 +109,7 @@ in-source build"
        ))))
 
 (ert-deftest open-file-parsed ()
-  "Tests the parsing of a source file. We ensure it correctly locates all include files."
+  "Tests the parsing of source files in a project. We ensure it correctly locates all include files, amongst other things."
   ;;:expected-result :passed ;; TODO failed if we can't locate cmake on the path
   (cmake-build-directory-fixture t
    (lambda (testdir builddir)
@@ -118,86 +118,90 @@ in-source build"
                                       :compdb-file (expand-file-name "compile_commands.json" builddir)
                                       :file (expand-file-name "CMakeLists.txt" testdir))))
            (hellocpp (expand-file-name "hello.cpp" testdir))
-           (world_cpp (expand-file-name "world/world.cpp" testdir))
-           (config_hpp (expand-file-name "config.hpp" testdir))
-           (build_type_cpp (expand-file-name "build_type.cpp" builddir)))
+           (testbufs nil))
 
        ;; Basic sanity checks on the project itself
        (should (eq proj (ede-directory-get-open-project testdir)))
        (should (gethash (file-truename hellocpp) (oref proj compdb)))
 
-       ;; Now we'll open a source file and check that it is parsed correctly
-       (let ((buf (find-file-noselect hellocpp)))
-         (unwind-protect
-             (with-current-buffer buf
-               ;; Should have set up the current project and target
-               (should (eq proj (ede-current-project)))
-               (should (oref ede-object compilation))
+       ;; Now we'll open source files and check that they are parsed correctly
+       (unwind-protect
+           (progn
+             (let ((buf (find-file-noselect hellocpp)))
+               (setq testbufs (cons buf testbufs))
+               (with-current-buffer buf
+                 ;; Should have set up the current project and target
+                 (should (eq proj (ede-current-project)))
+                 (should (oref ede-object compilation))
+                 
+                 ;; Include path should include certain dirs:
+                 (let ((P (ede-system-include-path ede-object)))
+                   (should (member (expand-file-name "world" testdir) P))
+                   (should (member (file-truename builddir) P))
+                   )
+                 
+                 ;; Should have been parsed
+                 (should (semantic-active-p))
+                 (should (not semantic-parser-warnings))
+                 
+                 (let* ((tags (semantic-fetch-tags))
+                        (includes (semantic-find-tags-included tags))
+                        (funcs (semantic-find-tags-by-class 'function tags)))
+                   ;; All includes should be parsed
+                   (should includes)
+                   (dolist (inc includes)
+                     (should (semantic-dependency-tag-file inc)))
+                   
+                   ;; These function names are defined using macros, so shouldn't be visible unless we
+                   ;; have parsed the preprocessor map correctly
+                   ;; (should (semantic-find-tags-by-name "HelloFoo" funcs))
+                   ;; (should (semantic-find-tags-by-name "HelloBar" funcs))
+                   ;; (should (semantic-find-tags-by-name "HelloBaz" funcs))
+                   )
+                 ))
 
-               ;; Include path should include certain dirs:
-               (let ((P (ede-system-include-path ede-object)))
-                 (should (member (expand-file-name "world" testdir) P))
-                 (should (member (file-truename builddir) P))
-                 )
+             ;; Try a file in a subdirectory
+             (let ((buf (find-file-noselect (expand-file-name "world/world.cpp" testdir))))
+               (setq testbufs (cons buf testbufs))
+               (with-current-buffer buf
+                 ;; Should have set up the current project and target with compilation
+                 (should (eq proj (ede-current-project)))
+                 (should (oref ede-object compilation))
 
-               ;; Should have been parsed
-               (should (semantic-active-p))
-               (should (not semantic-parser-warnings))
+                 ;; Should have been parsed
+                 (should (semantic-active-p))
+                 (should (not semantic-parser-warnings))
+                 ))
 
-               (let* ((tags (semantic-fetch-tags))
-                      (includes (semantic-find-tags-included tags))
-                      (funcs (semantic-find-tags-by-class 'function tags)))
-                 ;; All includes should be parsed
-                 (should includes)
-                 (dolist (inc includes)
-                   (should (semantic-dependency-tag-file inc)))
-
-                 ;; These function names are defined using macros, so shouldn't be visible unless we
-                 ;; have parsed the preprocessor map correctly
-                 ;; (should (semantic-find-tags-by-name "HelloFoo" funcs))
-                 ;; (should (semantic-find-tags-by-name "HelloBar" funcs))
-                 ;; (should (semantic-find-tags-by-name "HelloBaz" funcs))
-               ))
-           (kill-buffer buf)))
-
-       ;; Try a file in a subdirectory
-       (let ((buf (find-file-noselect world_cpp)))
-         (unwind-protect
-             (with-current-buffer buf
-               ;; Should have set up the current project and target with compilation
-               (should (eq proj (ede-current-project)))
-               (should (oref ede-object compilation))
-
-               ;; Should have been parsed
-               (should (semantic-active-p))
-               (should (not semantic-parser-warnings))
-               )
-           (kill-buffer buf)))
-
-       ;; Try a header file
-       (let ((buf (find-file-noselect config_hpp)))
-         (unwind-protect
-             (with-current-buffer buf
-               ;; Should have set up the current project and target - but no compilation (yet!)
-               (should (eq proj (ede-current-project)))
-               (should (not (oref ede-object compilation)))
-               )
-           (kill-buffer buf)))
-
-       ;; Try a generated source file
-       (let ((buf (find-file-noselect build_type_cpp)))
-         (unwind-protect
-             (with-current-buffer buf
-               ;; FIXME: Should have set up the current project and target with compilation
-               ;; (should (eq proj (ede-current-project)))
-               ;; (should (oref ede-object compilation))
+             ;; Try a header file
+             (let ((buf (find-file-noselect (expand-file-name "config.hpp" testdir))))
+               (setq testbufs (cons buf testbufs))
+               (with-current-buffer buf
+                 ;; Should have set up the current project and target - but no compilation (yet!)
+                 (should (eq proj (ede-current-project)))
+                 (should (not (oref ede-object compilation)))
+                 ))
+             
+             ;; Try a generated source file
+             (let ((buf (find-file-noselect (expand-file-name "build_type.cpp" builddir))))
+               (setq testbufs (cons buf testbufs))
+               (with-current-buffer buf
+                 ;; FIXME: Should have set up the current project and target with compilation
+                 ;; (should (eq proj (ede-current-project)))
+                 ;; (should (oref ede-object compilation))
            
-               ;; FIXME: should have been parsed
-               ;; (should (semantic-active-p))
-               ;; (should (not semantic-parser-warnings))
-               )
-           (kill-buffer buf)))
-       ))))
+                 ;; FIXME: should have been parsed
+                 ;; (should (semantic-active-p))
+                 ;; (should (not semantic-parser-warnings))
+                 ))
+
+             ;; Force a rescan with all these buffers open, just to make sure it works
+             (with-current-buffer (car testbufs)
+               (ede-rescan-toplevel))
+             )
+         (while testbufs
+           (kill-buffer (pop testbufs)))
+         )))))
 
 (ert-deftest compiler-include-path-cache ()
   "Tests that the compiler include paths are detected."

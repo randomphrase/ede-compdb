@@ -248,8 +248,8 @@ Argument COMMAND is the command to use for compiling the target."
           ;; Add this entry to the database
           (puthash filetruename compilation (oref this compdb))
           ;; Update target if there is one
-          (when target
-            (oset this :compilation compilation))
+          (when (and target (slot-boundp target :compilation)
+                     (oset target :compilation compilation)))
           
           ;; If we haven't set a project dir, or this entry's directory is a prefix of the current
           ;; project dir, then update the project dir. However, we ignore external build
