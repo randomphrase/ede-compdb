@@ -82,6 +82,32 @@ in-source build"
           )
       (setq ede-compdb-compiler-cache savedcache))))
 
+(ert-deftest empty-build-dir ()
+  "Tests that we can still open files when the build directory can't be located, or is empty"
+  (temp-directory-fixture
+   (lambda (tmpdir)
+     (let* ((srcdir ede-compdb-test-srcdir)
+            (proj (ede-add-project-to-global-list
+                  (ede-compdb-project "TESTPROJ"
+                                      :compdb-file (expand-file-name "compile_commands.json" tmpdir)
+                                      :file (expand-file-name "CMakeLists.txt" srcdir))))
+            (hellocpp (expand-file-name "hello.cpp" srcdir)))
+
+       (should (eq proj (ede-directory-get-open-project srcdir)))
+
+       (let ((buf (find-file-noselect hellocpp)))
+         (unwind-protect
+             (with-current-buffer buf
+               ;; Should have set up the current project and target
+               (should (eq proj (ede-current-project)))
+               (should (not (oref ede-object compilation)))
+
+               ;; Should have been parsed
+               (should (semantic-active-p))
+               )
+         (kill-buffer buf)))
+       ))))
+
 (ert-deftest open-file-parsed ()
   "Tests the parsing of a source file. We ensure it correctly locates all include files."
   ;;:expected-result :passed ;; TODO failed if we can't locate cmake on the path

@@ -188,12 +188,15 @@ Argument COMMAND is the command to use for compiling the target."
 
 
 
+(defmethod current-configuration-directory-path ((this ede-compdb-project) &optional config)
+  "Returns the path to the configuration directory for CONFIG, or for :configuration-default if CONFIG not set"
+  (let ((dir (cdr (assoc (or config (oref this configuration-default))
+                         (mapcar* #'cons (oref this configurations) (oref this configuration-directories))))))
+    (and dir (file-name-as-directory (expand-file-name dir (oref this directory))))))
+
 (defmethod current-configuration-directory ((this ede-compdb-project) &optional config)
-  "Returns the directory for CONFIG, or the current :configuration-default if not set"
-  (let* ((config (or config (oref this configuration-default)))
-         (dirname (cdr (assoc config
-                          (mapcar* #'cons (oref this configurations) (oref this configuration-directories)))))
-         (dir (and dirname (file-name-as-directory (expand-file-name dirname (oref this directory))))))
+  "Returns the validated configuration directory for CONFIG, or for :configuration-default if CONFIG not set"
+  (let ((dir (current-configuration-directory-path this config)))
     (unless dir
       (error "No directory for configuration %s" config))
     (unless (and (file-exists-p dir) (file-directory-p dir))
@@ -201,8 +204,8 @@ Argument COMMAND is the command to use for compiling the target."
     dir))
     
 (defmethod current-compdb-path ((this ede-compdb-project))
-  "Returns a full path to the current compdb file"
-  (expand-file-name (oref this compdb-file) (current-configuration-directory this)))
+  "Returns a path to the current compdb file"
+  (expand-file-name (oref this compdb-file) (current-configuration-directory-path this)))
 
 (defmethod insert-compdb ((this ede-compdb-project) compdb-path)
   "Inserts the compilation database into the current buffer"
@@ -285,9 +288,11 @@ Argument COMMAND is the command to use for compiling the target."
   "Reload the compilation database if the corresponding watch file has changed."
   (let ((stats (file-attributes (current-compdb-path this))))
     ;; Logic stolen from ede/arduino.el
-    (when (or (not (oref this compdb-file-timestamp))
-              (/= (or (oref this compdb-file-size) 0) (nth 7 stats))
-              (not (equal (oref this compdb-file-timestamp) (nth 5 stats))))
+    ;; stats will be null if compdb file is not present
+    (when (and stats
+               (or (not (oref this compdb-file-timestamp))
+                   (/= (or (oref this compdb-file-size) 0) (nth 7 stats))
+                   (not (equal (oref this compdb-file-timestamp) (nth 5 stats)))))
       (project-rescan this))))
 
 (defmethod initialize-instance :AFTER ((this ede-compdb-project) &rest fields)
@@ -319,10 +324,13 @@ Argument COMMAND is the command to use for compiling the target."
     (oset this file (expand-file-name (oref this compdb-file) (oref this directory))))
 
   (unless (slot-boundp this 'directory)
-    ;; set a starting :directory so that we can evaluate current-configuration-directory, needed for project-rescan
+    ;; set a starting :directory so that we can evaluate current-configuration-directory
     (oset this directory (file-name-directory (expand-file-name (oref this file)))))
 
-  (project-rescan this)
+  ;; Rescan if compdb exists
+  (if (file-exists-p (current-compdb-path this))
+      (project-rescan this)
+    (message "Could not open %s" (current-compdb-path this)))
   )
 
 (defmethod ede-find-subproject-for-directory ((proj ede-compdb-project)
