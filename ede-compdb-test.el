@@ -69,15 +69,15 @@ in-source build"
     (unwind-protect
         (progn
           ;; Prepopulate the compiler cache so that we know what to expect in it
-          (setq ede-compdb-compiler-cache '(("clang" . "/opt/clang/include")))
+          (setq ede-compdb-compiler-cache '(("g++" . "/opt/gcc/include")))
           (setq f (compdb-entry "foo.cpp" :command-line
-                                "clang -Dfoo -Dbar=baz -Uqux -I/opt/local/include -Iincludes -include bar.hpp main.cpp"))
+                                "g++ -Dfoo -Dbar=baz -Uqux -isystem /opt/quxx/include -I/opt/local/include -Iincludes -include bar.hpp main.cpp"))
 
           (parse-command-line-if-needed f)
-          (should (equal "clang" (oref f compiler)))
+          (should (equal "g++" (oref f compiler)))
           (should (equal '(("foo") ("bar" . "baz")) (oref f defines)))
           (should (equal '("qux") (oref f undefines)))
-          (should (equal '("/opt/local/include" "includes" "/opt/clang/include") (oref f include-path)))
+          (should (equal '("/opt/quxx/include" "/opt/local/include" "includes" "/opt/gcc/include") (oref f include-path)))
           (should (equal '("bar.hpp") (oref f includes)))
           )
       (setq ede-compdb-compiler-cache savedcache))))

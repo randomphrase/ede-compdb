@@ -117,7 +117,8 @@ from the command line (which is most of them!)"
         (cond
          ((equal argi "-D") (object-add-to-list this :defines (cons (or argval (pop args)) defval) t))
          ((equal argi "-U") (object-add-to-list this :undefines (or argval (pop args)) t))
-         ((member argi '("-I" "-F")) (object-add-to-list this :include-path (or argval (pop args)) t))
+         ;; TODO: support gcc notation "=dir" where '=' is the sysroot prefix
+         ((member argi '("-I" "-F" "-isystem")) (object-add-to-list this :include-path (or argval (pop args)) t))
          ((equal argi "-include") (object-add-to-list this :includes (pop args) t))
          ;; TODO: -nostdinc, -nostdlibinc, -nobuildinic
          ((not seenopt) (oset this compiler (if (slot-boundp this :compiler) (concat (oref this compiler) " " argi) argi)))
