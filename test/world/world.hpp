@@ -5,6 +5,8 @@
 
 #define HELLO_BAZ HelloBaz
 
+extern const char * BUILD_TYPE;
+
 void HelloWorld(std::ostream&);
 
 #endif

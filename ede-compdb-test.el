@@ -92,8 +92,9 @@ in-source build"
                                       :compdb-file (expand-file-name "compile_commands.json" builddir)
                                       :file (expand-file-name "CMakeLists.txt" testdir))))
            (hellocpp (expand-file-name "hello.cpp" testdir))
-           (worldcpp (expand-file-name "world/world.cpp" testdir))
-           (confighpp (expand-file-name "config.hpp" testdir)))
+           (world_cpp (expand-file-name "world/world.cpp" testdir))
+           (config_hpp (expand-file-name "config.hpp" testdir))
+           (build_type_cpp (expand-file-name "build_type.cpp" builddir)))
 
        ;; Basic sanity checks on the project itself
        (should (eq proj (ede-directory-get-open-project testdir)))
@@ -134,10 +135,10 @@ in-source build"
            (kill-buffer buf)))
 
        ;; Try a file in a subdirectory
-       (let ((buf (find-file-noselect worldcpp)))
+       (let ((buf (find-file-noselect world_cpp)))
          (unwind-protect
              (with-current-buffer buf
-               ;; Should have set up the current project and target
+               ;; Should have set up the current project and target with compilation
                (should (eq proj (ede-current-project)))
                (should (oref ede-object compilation))
 
@@ -148,12 +149,26 @@ in-source build"
            (kill-buffer buf)))
 
        ;; Try a header file
-       (let ((buf (find-file-noselect confighpp)))
+       (let ((buf (find-file-noselect config_hpp)))
          (unwind-protect
              (with-current-buffer buf
-               ;; Should have set up the current project and target
+               ;; Should have set up the current project and target - but no compilation (yet!)
                (should (eq proj (ede-current-project)))
                (should (not (oref ede-object compilation)))
+               )
+           (kill-buffer buf)))
+
+       ;; Try a generated source file
+       (let ((buf (find-file-noselect build_type_cpp)))
+         (unwind-protect
+             (with-current-buffer buf
+               ;; FIXME: Should have set up the current project and target with compilation
+               ;; (should (eq proj (ede-current-project)))
+               ;; (should (oref ede-object compilation))
+           
+               ;; FIXME: should have been parsed
+               ;; (should (semantic-active-p))
+               ;; (should (not semantic-parser-warnings))
                )
            (kill-buffer buf)))
        ))))

@@ -1,0 +1,3 @@
+#include "world.hpp"
+
+const char * BUILD_TYPE = "@CMAKE_BUILD_TYPE@";

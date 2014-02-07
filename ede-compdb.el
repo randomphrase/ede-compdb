@@ -211,10 +211,14 @@ Argument COMMAND is the command to use for compiling the target."
   "Reload the compilation database."
   (clrhash (oref this compdb))
   (let* ((compdb-path (current-compdb-path this))
-         (oldprojdir (when (slot-boundp this :directory) (oref this directory)))
+         (builddir (current-configuration-directory this))
+         (oldprojdir (oref this directory))
          (newprojdir oldprojdir)
+         ;; externbuild set for out-of-source builds
+         (externbuild (when (not (string-prefix-p oldprojdir builddir)) builddir))
          (json-array-type 'list)
          json-compdb)
+
     (with-temp-buffer
       (insert-compdb this compdb-path)
       (goto-char (point-min))
@@ -243,9 +247,11 @@ Argument COMMAND is the command to use for compiling the target."
           (when target
             (oset this :compilation compilation))
           
-          ;; If we haven't set a project dir, or this entry's directory is a prefix of the
-          ;; current project dir, then update the project dir
-          (when (or (not newprojdir) (string-prefix-p srcdir newprojdir))
+          ;; If we haven't set a project dir, or this entry's directory is a prefix of the current
+          ;; project dir, then update the project dir. However, we ignore external build
+          ;; directories, because they could be in a completely different part of the filesystem.
+          (when (and (or (not externbuild) (not (string-prefix-p externbuild newprojdir)))
+                     (or (not newprojdir) (string-prefix-p srcdir newprojdir)))
             (setq newprojdir srcdir))
 
           (progress-reporter-update progress-reporter iter)
