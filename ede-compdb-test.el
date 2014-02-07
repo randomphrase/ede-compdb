@@ -198,6 +198,13 @@ in-source build"
              ;; Force a rescan with all these buffers open, just to make sure it works
              (with-current-buffer (car testbufs)
                (ede-rescan-toplevel))
+
+             ;; All compilation entries should have been updated
+             ;; FIXME: need ede-object for all buffers, including above
+             (with-current-buffer (get-file-buffer hellocpp)
+               ;; Check that compilation entry has been updated
+               (should (eq (oref ede-object compilation)
+                           (gethash (file-truename buffer-file-name) (oref proj compdb)))))
              )
          (while testbufs
            (kill-buffer (pop testbufs)))

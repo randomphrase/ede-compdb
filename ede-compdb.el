@@ -237,8 +237,6 @@ Argument COMMAND is the command to use for compiling the target."
                (filename (expand-file-name (cdr (assoc 'file E)) directory))
                (filetruename (file-truename filename))
                (command-line (cdr (assoc 'command E)))
-               ;; Targets must be looked up relative to the old project dir.. (we rebase against the new project directory below)
-               (target (object-assoc (file-relative-name filetruename oldprojdir) :path (oref this targets)))
                (compilation
                 (compdb-entry filename
                               :command-line command-line
@@ -247,9 +245,6 @@ Argument COMMAND is the command to use for compiling the target."
 
           ;; Add this entry to the database
           (puthash filetruename compilation (oref this compdb))
-          ;; Update target if there is one
-          (when (and target (slot-boundp target :compilation)
-                     (oset target :compilation compilation)))
           
           ;; If we haven't set a project dir, or this entry's directory is a prefix of the current
           ;; project dir, then update the project dir. However, we ignore external build
@@ -274,15 +269,18 @@ Argument COMMAND is the command to use for compiling the target."
       (oset this :directory newprojdir)
       (when oldprojdir
         ;; TODO: is this all that is required?
-        (ede-project-directory-remove-hash oldprojdir))
-      (dolist (t (oref this targets))
-        (when (slot-boundp t 'path)
-          (oset t :path
-                (ede-convert-path this (expand-file-name (oref t path) oldprojdir))))
-        )
+        (ede-project-directory-remove-hash oldprojdir)))
+
+    ;; Update all targets
+    (dolist (T (oref this targets))
+      ;; Update compilation
+      (when (slot-boundp T :compilation)
+        (oset T :compilation (gethash (file-truename (expand-file-name (oref T :path) oldprojdir)) (oref this compdb))))
+
+      (when (and (not (equal oldprojdir newprojdir)) (slot-boundp T 'path))
+        (oset T :path (ede-convert-path this (expand-file-name (oref T path) oldprojdir))))
       )
-    )
-  )
+    ))
 
 (defmethod project-rescan-if-needed ((this ede-compdb-project))
   "Reload the compilation database if the corresponding watch file has changed."
