@@ -443,18 +443,16 @@ of `ede-compdb-target' or a string."
 (defun ede-compdb-load-project (dir)
   "Creates an ede-compdb project for DIR"
   ;; TODO: Other project types keep their own cache of active projects - do we need to as well?
-  (ede-add-project-to-global-list
-   (ede-compdb-project (file-name-nondirectory (directory-file-name dir))
-                       :compdb-file "compile_commands.json"
-                       :directory (file-name-as-directory dir))))
+  (ede-compdb-project (file-name-nondirectory (directory-file-name dir))
+                      :compdb-file "compile_commands.json"
+                      :directory (file-name-as-directory dir)))
 
 (defun ede-ninja-load-project (dir)
   "Creates an ede-ninja project for DIR"
   ;; TODO: Other project types keep their own cache of active projects - do we need to as well?
-  (ede-add-project-to-global-list
-   (ede-ninja-project (file-name-nondirectory (directory-file-name dir))
-                      :compdb-file "build.ninja"
-                      :directory (file-name-as-directory dir))))
+  (ede-ninja-project (file-name-nondirectory (directory-file-name dir))
+                     :compdb-file "build.ninja"
+                     :directory (file-name-as-directory dir)))
                  
 ;;;###autoload
 (ede-add-project-autoload
