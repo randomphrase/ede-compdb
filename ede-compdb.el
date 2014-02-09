@@ -24,10 +24,47 @@
 
 ;; See the accompanying readme.org for quickstart and usage information
 
-;;; Code:
-
 (require 'ede)
 (require 'json)
+
+;;; Code:
+
+;;; Autoload support
+
+;;;###autoload
+(defun ede-compdb-load-project (dir)
+  "Create an instance of option `ede-compdb-project' for DIR."
+  ;; TODO: Other project types keep their own cache of active projects - do we need to as well?
+  (ede-compdb-project (file-name-nondirectory (directory-file-name dir))
+                      :compdb-file "compile_commands.json"
+                      :directory (file-name-as-directory dir)))
+
+;;;###autoload
+(defun ede-ninja-load-project (dir)
+  "Create an instnace of option `ede-ninja-project' for DIR."
+  ;; TODO: Other project types keep their own cache of active projects - do we need to as well?
+  (ede-ninja-project (file-name-nondirectory (directory-file-name dir))
+                     :compdb-file "build.ninja"
+                     :directory (file-name-as-directory dir)))
+                 
+;;;###autoload
+(ede-add-project-autoload
+ (ede-project-autoload "compdb"
+                       :file 'ede-compdb
+                       :proj-file "compile_commands.json"
+                       :load-type 'ede-compdb-load-project
+                       :class-sym 'ede-compdb-project))
+
+;;;###autoload
+(ede-add-project-autoload
+ (ede-project-autoload "ninja"
+                       :file 'ede-compdb
+                       :proj-file "build.ninja"
+                       :load-type 'ede-ninja-load-project
+                       :class-sym 'ede-ninja-project))
+
+
+;;; Classes:
 
 (defclass compdb-entry (eieio-named)
   (
@@ -102,6 +139,8 @@
   "Represents a target, namely something that can be built"
   )
 
+;;; Compiler support:
+
 (defvar ede-compdb-compiler-cache nil "Cached include paths for each compiler detected.")
 
 (defun ede-compdb-compiler-include-path (comp)
@@ -114,6 +153,9 @@
                               (semantic-gcc-fields (semantic-gcc-query comp "-v")))))
       (add-to-list 'ede-compdb-compiler-cache (cons comp path)))
     path))
+
+
+;;; compdb-entry methods:
 
 (defmethod get-command-line ((this compdb-entry))
   ;; TODO: Can this be replaced by an :accessor slot option?
@@ -158,6 +200,9 @@ from the command line (which is most of them!)"
       (when cpath
         (object-add-to-list this :include-path cpath t)))
     ))
+
+
+;;; ede-compdb-target methods:
 
 (defmethod ede-system-include-path ((this ede-compdb-target))
   "Get the system include path used by project THIS."
@@ -211,6 +256,7 @@ from the command line (which is most of them!)"
   (project-compile-target (oref this project) this))
 
 
+;;; ede-compdb-project methods:
 
 (defmethod current-configuration-directory-path ((this ede-compdb-project) &optional config)
   "Returns the path to the configuration directory for CONFIG, or for :configuration-default if CONFIG not set"
@@ -297,7 +343,7 @@ lookup on the filename calculated from `ff-other-file-name'."
             (setq newprojdir srcdir))
 
           (progress-reporter-update progress-reporter iter)
-          (cl-incf iter)
+          (setq iter (1+ iter))
           ))
       
       (progress-reporter-done progress-reporter)
@@ -435,6 +481,7 @@ of `ede-compdb-target' or a string."
     (project-compile-target proj target)))
 
 
+;;; ede-compdb-project methods:
 
 (defvar ede-ninja-target-regexp "^\\(.+\\): \\(phony\\|CLEAN\\)$"
   "Regexp to identify phony targets in the output of ninja -t targets.")
@@ -464,38 +511,6 @@ to :compdb-file"
   (message "Building compilation database...")
   (let ((default-directory (file-name-directory compdb-path)))
     (call-process "ninja" nil t nil "-t" "compdb" "CXX_COMPILER" "C_COMPILER")))
-
-;;; Autoload support
-
-(defun ede-compdb-load-project (dir)
-  "Create an instance of option `ede-compdb-project' for DIR."
-  ;; TODO: Other project types keep their own cache of active projects - do we need to as well?
-  (ede-compdb-project (file-name-nondirectory (directory-file-name dir))
-                      :compdb-file "compile_commands.json"
-                      :directory (file-name-as-directory dir)))
-
-(defun ede-ninja-load-project (dir)
-  "Create an instnace of option `ede-ninja-project' for DIR."
-  ;; TODO: Other project types keep their own cache of active projects - do we need to as well?
-  (ede-ninja-project (file-name-nondirectory (directory-file-name dir))
-                     :compdb-file "build.ninja"
-                     :directory (file-name-as-directory dir)))
-                 
-;;;###autoload
-(ede-add-project-autoload
- (ede-project-autoload "compdb"
-                       :file 'ede-compdb
-                       :proj-file "compile_commands.json"
-                       :load-type 'ede-compdb-load-project
-                       :class-sym 'ede-compdb-project))
-
-;;;###autoload
-(ede-add-project-autoload
- (ede-project-autoload "ninja"
-                       :file 'ede-compdb
-                       :proj-file "build.ninja"
-                       :load-type 'ede-ninja-load-project
-                       :class-sym 'ede-ninja-project))
 
 (provide 'ede-compdb)
 
