@@ -1,4 +1,30 @@
-;; -*- lexical-binding: t; -*-
+;; ede-compdb.el --- Support for compilation database projects in EDE  -*- lexical-binding: t; -*-
+
+;; Copyright (C) 2013-2014 Alastair Rankine
+
+;; Author: Alastair Rankine <alastair@girtby.net>
+;; Keywords: development ninja build cedet ede
+
+;; This file is not part of GNU Emacs.
+
+;; This file is free software: you can redistribute it and/or modify
+;; it under the terms of the GNU General Public License as published by
+;; the Free Software Foundation, either version 3 of the License, or
+;; (at your option) any later version.
+
+;; This file is distributed in the hope that it will be useful,
+;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+;; GNU General Public License for more details.
+
+;; You should have received a copy of the GNU General Public License
+;; along with this file.  If not, see <http://www.gnu.org/licenses/>.
+
+;;; Commentary:
+
+;; See the accompanying readme.org for quickstart and usage information
+
+;;; Code:
 
 (require 'ede)
 (require 'json)
@@ -43,7 +69,7 @@
     :documentation "A shell command to build the entire project. Invoked from the configuration directory.")
 
    (compdb
-    :initform (make-hash-table :test 'equal) 
+    :initform (make-hash-table :test 'equal)
     :documentation "The compilation database, as a hash keyed on source file")
 
    (compdb-file-timestamp
@@ -76,10 +102,10 @@
   "Represents a target, namely something that can be built"
   )
 
-(defvar ede-compdb-compiler-cache nil "Cached include paths for each compiler detected")
+(defvar ede-compdb-compiler-cache nil "Cached include paths for each compiler detected.")
 
 (defun ede-compdb-compiler-include-path (comp)
-  "Looks up include paths for COMP and adds to INCLUDE-PATHS"
+  "Look up include paths for COMP and add to INCLUDE-PATHS."
   (let ((path (cdr (assoc comp ede-compdb-compiler-cache))))
     (unless path
       (require 'semantic/bovine/gcc)
@@ -103,10 +129,11 @@ from the command line (which is most of them!)"
     (parse-command-line this)))
 
 (defmethod parse-command-line ((this compdb-entry))
-  ;; parsing code inspired by `command-line'
+  "Parse the :command-line slot of THIS to derive :compiler, :include-path, etc."
   (let ((args (split-string (oref this command-line)))
         (seenopt nil)
         (case-fold-search nil))
+    ;; parsing code inspired by `command-line'
     (while args
       (let ((argi (pop args)) argval defval)
         ;; Handle -DFOO, -UFOO, etc arguments
@@ -149,9 +176,7 @@ from the command line (which is most of them!)"
 
 (defmethod ede-preprocessor-map ((this ede-compdb-target))
   "Get the preprocessor map for target THIS."
-
   (project-rescan-if-needed (oref this project))
-
   (when (oref this compilation)
     (parse-command-line-if-needed (oref this compilation))
     ;; Stolen from cpp-root
@@ -181,9 +206,8 @@ from the command line (which is most of them!)"
        (oref (oref this compilation) includes))
       spp)))
 
-(defmethod project-compile-target ((this ede-compdb-target) &optional command)
-  "Compile the current target THIS.
-Argument COMMAND is the command to use for compiling the target."
+(defmethod project-compile-target ((this ede-compdb-target))
+  "Compile the current target THIS."
   (project-compile-target (oref this project) this))
 
 
@@ -316,7 +340,7 @@ lookup on the filename calculated from `ff-other-file-name'."
 
 (defmethod initialize-instance :AFTER ((this ede-compdb-project) &rest fields)
   (unless (slot-boundp this 'targets)
-    (oset this :targets nil))  
+    (oset this :targets nil))
 
   (unless (slot-boundp this 'compdb-file)
     (oset this compdb-file (file-name-nondirectory (expand-file-name (oref this file)))))
@@ -389,7 +413,7 @@ of `ede-compdb-target' or a string."
     ))
 
 (defmethod project-compile-project ((this ede-compdb-project))
-  "Build the current project using :build-command"
+  "Build the project THIS using :build-command"
   (let ((default-directory (current-configuration-directory this)))
     (compilation-start (oref this build-command))
     ))
@@ -401,7 +425,7 @@ of `ede-compdb-target' or a string."
            [ "Build Other Target..." ede-compdb-build-target ])))
 
 (defun ede-compdb-build-target (target)
-  "Prompt for a custom target and build it in the current project"
+  "Builds TARGET in the current ede project.  If invoked interactively, prompts for a target name."
   (interactive
    (let* ((proj (ede-current-project))
           (targets (oref proj phony-targets))
@@ -412,7 +436,8 @@ of `ede-compdb-target' or a string."
 
 
 
-(defvar ede-ninja-target-regexp "^\\(.+\\): \\(phony\\|CLEAN\\)$")
+(defvar ede-ninja-target-regexp "^\\(.+\\): \\(phony\\|CLEAN\\)$"
+  "Regexp to identify phony targets in the output of ninja -t targets.")
 
 (defmethod project-rescan ((this ede-ninja-project))
   "Get ninja to describe the set of phony targets, add them to the target list"
@@ -433,7 +458,9 @@ of `ede-compdb-target' or a string."
       )))
 
 (defmethod insert-compdb ((this ede-ninja-project) compdb-path)
-  "Use ninja's compdb tool to insert the compilation database into the current buffer"
+  "Use ninja's compdb tool to insert the compilation database
+into the current buffer. COMPDB-PATH represents the current path
+to :compdb-file"
   (message "Building compilation database...")
   (let ((default-directory (file-name-directory compdb-path)))
     (call-process "ninja" nil t nil "-t" "compdb" "CXX_COMPILER" "C_COMPILER")))
@@ -441,14 +468,14 @@ of `ede-compdb-target' or a string."
 ;;; Autoload support
 
 (defun ede-compdb-load-project (dir)
-  "Creates an ede-compdb project for DIR"
+  "Create an instance of option `ede-compdb-project' for DIR."
   ;; TODO: Other project types keep their own cache of active projects - do we need to as well?
   (ede-compdb-project (file-name-nondirectory (directory-file-name dir))
                       :compdb-file "compile_commands.json"
                       :directory (file-name-as-directory dir)))
 
 (defun ede-ninja-load-project (dir)
-  "Creates an ede-ninja project for DIR"
+  "Create an instnace of option `ede-ninja-project' for DIR."
   ;; TODO: Other project types keep their own cache of active projects - do we need to as well?
   (ede-ninja-project (file-name-nondirectory (directory-file-name dir))
                      :compdb-file "build.ninja"
@@ -461,7 +488,6 @@ of `ede-compdb-target' or a string."
                        :proj-file "compile_commands.json"
                        :load-type 'ede-compdb-load-project
                        :class-sym 'ede-compdb-project))
- ;;'unique)
 
 ;;;###autoload
 (ede-add-project-autoload
@@ -470,6 +496,7 @@ of `ede-compdb-target' or a string."
                        :proj-file "build.ninja"
                        :load-type 'ede-ninja-load-project
                        :class-sym 'ede-ninja-project))
- ;;'unique)
 
 (provide 'ede-compdb)
+
+;;; ede-compdb.el ends here
