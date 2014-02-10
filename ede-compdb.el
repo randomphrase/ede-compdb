@@ -436,14 +436,14 @@ lookup on the filename calculated from `ff-other-file-name'."
 (defmethod ede-find-target ((this ede-compdb-project) buffer)
   "Find an EDE target in THIS for BUFFER.
 If one doesn't exist, create a new one."
-  (let* ((file (file-truename (buffer-file-name buffer))) ; FIXME: not right - use ede-convert-path
-         (ans (object-assoc file :path (oref this targets))))
+  (let* ((path (ede-convert-path this buffer-file-name))
+         (ans (object-assoc path :path (oref this targets))))
     (when (not ans)
       (project-rescan-if-needed this)
       (with-current-buffer buffer
         (setq ans (ede-compdb-target
-                   (ede-convert-path this file)
-                   :path (ede-convert-path this file)
+                   path
+                   :path path
                    :compilation (compdb-entry-for-buffer this)
                    :project this)))
       (object-add-to-list this :targets ans)
