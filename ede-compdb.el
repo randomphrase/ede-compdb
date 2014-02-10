@@ -360,11 +360,17 @@ lookup on the filename calculated from `ff-other-file-name'."
         ;; TODO: is this all that is required?
         (ede-project-directory-remove-hash oldprojdir)))
 
+    ;; Remove targets without a buffer - we won't be able to update the compilation entry otherwise
+    (oset this targets
+          (remq nil
+                (mapcar (lambda (T) (when (get-file-buffer (expand-file-name (oref T path) oldprojdir)) T))
+                        (oref this targets))))
+
     ;; Update all remaining targets
     (dolist (T (oref this targets))
 
       ;; Update compilation
-      (when (slot-boundp T :compilation)
+      (when (oref T :compilation)
         (with-current-buffer (get-file-buffer (expand-file-name (oref T :path) oldprojdir))
           (oset T :compilation (compdb-entry-for-buffer this))))
 

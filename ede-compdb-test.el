@@ -235,6 +235,12 @@ in-source build"
                ;; Check that compilation entry has been updated
                (should (eq (oref ede-object compilation)
                            (gethash (file-truename buffer-file-name) (oref proj compdb)))))
+
+             ;; Close all buffers and check we can still rescan
+             (while testbufs
+               (kill-buffer (pop testbufs)))
+             (project-rescan proj)
+
              )
          (while testbufs
            (kill-buffer (pop testbufs)))
