@@ -482,17 +482,7 @@ of `ede-compdb-target' or a string."
   "Override to add a custom target menu item"
   (append (call-next-method)
           (list
-           [ "Build Other Target..." ede-compdb-build-target ])))
-
-(defun ede-compdb-build-target (target)
-  "Builds TARGET in the current ede project.  If invoked interactively, prompts for a target name."
-  (interactive
-   (let* ((proj (ede-current-project))
-          (targets (oref proj phony-targets))
-          (string (completing-read "Target: " targets nil nil nil 'ede-compdb-target-history)))
-     (list string)))
-  (let ((proj (ede-current-project)))
-    (project-compile-target proj target)))
+           [ "Set Configuration Directory..." ede-compdb-set-configuration-directory ])))
 
 (defun ede-compdb-set-configuration-directory (dir &optional proj config)
   "Set the configuration directory of project PROJ for configuration CONFIG to DIR."
@@ -529,6 +519,12 @@ to :compdb-file"
   (message "Building compilation database...")
   (let ((default-directory (file-name-directory compdb-path)))
     (call-process "ninja" nil t nil "-t" "compdb" "CXX_COMPILER" "C_COMPILER")))
+
+(defmethod project-interactive-select-target ((this ede-ninja-project) prompt)
+  "Interactively query for a target. Argument PROMPT is the prompt to use."
+  (let ((tname (completing-read prompt (oref this phony-targets) nil nil nil 'ede-ninja-target-history)))
+    ;; Create a new target and return it - doesn't matter that it's not in :targets list...
+    (ede-compdb-target tname :name tname :project this)))
 
 (provide 'ede-compdb)
 
