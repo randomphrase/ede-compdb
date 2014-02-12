@@ -280,13 +280,16 @@ in-source build"
   (temp-directory-fixture
    (lambda (builddir)
      (let ((dbgdir (file-name-as-directory (concat builddir "debug")))
-           (reldir (file-name-as-directory (concat builddir "release"))))
+           (reldir (file-name-as-directory (concat builddir "release")))
+           (custdir (file-name-as-directory (concat builddir "custom"))))
        (make-directory dbgdir)
        (make-directory reldir)
+       (make-directory custdir)
 
        (with-temp-buffer
          (invoke-cmake t ede-compdb-test-srcdir dbgdir "-DCMAKE_BUILD_TYPE=Debug")
          (invoke-cmake t ede-compdb-test-srcdir reldir "-DCMAKE_BUILD_TYPE=Release")
+         (invoke-cmake t ede-compdb-test-srcdir custdir "-DCMAKE_BUILD_TYPE=Release")
 
          (let ((proj (ede-compdb-project
                       "TESTPROJ"
@@ -305,6 +308,12 @@ in-source build"
            (sleep-until-compilation-done)
            (should (file-executable-p (concat reldir "hello")))
          
+           ;; Set the current configuration directory to custdir
+           (ede-compdb-set-configuration-directory custdir proj)
+           (project-compile-project proj)
+           (sleep-until-compilation-done)
+           (should (file-executable-p (concat custdir "hello")))
+
            ))))))
 
 (ert-deftest autoload-project ()

@@ -26,6 +26,7 @@
 
 (require 'ede)
 (require 'json)
+(require 'cl-lib)
 
 ;;; Code:
 
@@ -260,8 +261,8 @@ from the command line (which is most of them!)"
 
 (defmethod current-configuration-directory-path ((this ede-compdb-project) &optional config)
   "Returns the path to the configuration directory for CONFIG, or for :configuration-default if CONFIG not set"
-  (let ((dir (cdr (assoc (or config (oref this configuration-default))
-                         (mapcar* #'cons (oref this configurations) (oref this configuration-directories))))))
+  (let ((dir (nth (cl-position (or config (oref this configuration-default)) (oref this configurations) :test 'equal)
+                  (oref this configuration-directories))))
     (and dir (file-name-as-directory (expand-file-name dir (oref this directory))))))
 
 (defmethod current-configuration-directory ((this ede-compdb-project) &optional config)
@@ -273,6 +274,13 @@ from the command line (which is most of them!)"
       (error "Directory not found for configuration %s: %s" config dir))
     dir))
     
+(defmethod set-configuration-directory ((this ede-compdb-project) dir &optional config)
+  "Sets the directory for configuration CONFIG to DIR.  The
+current configuration directory is used if CONFIG not set."
+  (setcar (nthcdr (cl-position (or config (oref this configuration-default)) (oref this configurations) :test 'equal)
+                  (oref this configuration-directories))
+          dir))
+
 (defmethod current-compdb-path ((this ede-compdb-project))
   "Returns a path to the current compdb file"
   (expand-file-name (oref this compdb-file) (current-configuration-directory-path this)))
@@ -486,6 +494,10 @@ of `ede-compdb-target' or a string."
   (let ((proj (ede-current-project)))
     (project-compile-target proj target)))
 
+(defun ede-compdb-set-configuration-directory (dir &optional proj config)
+  "Set the configuration directory of project PROJ for configuration CONFIG to DIR."
+  (interactive "D")
+  (set-configuration-directory (or proj (ede-current-project)) dir config))
 
 ;;; ede-compdb-project methods:
 
