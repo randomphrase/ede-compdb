@@ -96,6 +96,8 @@
 
 (defclass ede-compdb-project (ede-project)
   (
+   (keybindings :initform (("b" . ede-project-configurations-set)
+                           ("B" . ede-compdb-set-configuration-directory)))
    (compdb-file
     :initarg :compdb-file :type string
     :documentation "The filename for the compilation database, eg \"compile_commmands.json\". This is evaluated relative to the current configuration directory.")
@@ -277,9 +279,11 @@ from the command line (which is most of them!)"
 (defmethod set-configuration-directory ((this ede-compdb-project) dir &optional config)
   "Sets the directory for configuration CONFIG to DIR.  The
 current configuration directory is used if CONFIG not set."
-  (setcar (nthcdr (cl-position (or config (oref this configuration-default)) (oref this configurations) :test 'equal)
-                  (oref this configuration-directories))
-          dir))
+  (let ((config (or config (oref this configuration-default))))
+    (setcar (nthcdr (cl-position config(oref this configurations) :test 'equal)
+                    (oref this configuration-directories))
+            dir)
+    (message "Configuration \"%s\" directory set to: %s" config dir)))
 
 (defmethod current-compdb-path ((this ede-compdb-project))
   "Returns a path to the current compdb file"
@@ -485,7 +489,7 @@ of `ede-compdb-target' or a string."
 
 (defun ede-compdb-set-configuration-directory (dir &optional proj config)
   "Set the configuration directory of project PROJ for configuration CONFIG to DIR."
-  (interactive "D")
+  (interactive "DConfiguration Directory: ")
   (set-configuration-directory (or proj (ede-current-project)) dir config))
 
 ;;; ede-compdb-project methods:
