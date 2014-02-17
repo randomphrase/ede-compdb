@@ -10,6 +10,7 @@ Features:
 - Many EDE commands supported, such as "C-c . c" to build the current target (source file)
 - Autoloads based on the presence of ~compile_commands.json~ file, with no additional configuration typically required
 - Supports multiple build configurations (eg Debug, Release) and corresponding build directories
+- Supports [[http://www.illusori.co.uk/projects/emacs-flymake/][Flymake]], allowing source files to be checked on-the-fly
 - (For Ninja projects only) Automatically generates the compilation database, and loads and caches available phony build targets
 
 License: GPLv2
@@ -86,6 +87,21 @@ In this (admittedly complex) example, we have a possible four different types of
 #+END_SRC
 
 The ~:build-command~ attribute sets the command to be used to build the entire project. This is available using the existing EDE shortcuts (eg "C-c . C" by default). This command is run from the current configuration directory.
+
+** Flymake Support
+
+The ~ede-compdb-flymake-init~ function is suitable for use with [[http://www.illusori.co.uk/projects/emacs-flymake/][flymake-mode]], which enables on-the-fly compilation checking of the current buffer. To configure it, simply add the following to your emacs init file:
+
+#+BEGIN_SRC emacs-lisp
+(require 'flymake)
+(setq flymake-allowed-file-name-masks
+      (cons '("\\.[ch]pp$" ede-compdb-flymake-init)
+            flymake-allowed-file-name-masks))
+
+(add-hook 'find-file-hook 'flymake-find-file-hook)
+#+END_SRC
+
+This will enable the use of flymake for all ~.cpp~ and ~.hpp~ files. Header files are supported, as long as a matching source file can be located, as described above.
 
 ** Ninja Build Tool
 

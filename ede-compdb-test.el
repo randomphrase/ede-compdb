@@ -333,6 +333,42 @@ in-source build"
            (kill-buffer buf)))))
    ))
 
+(ert-deftest flymake-init-test ()
+  "Tests that `ede-compdb-flymake-init' works correctly."
+  (cmake-build-directory-fixture
+   t
+   (lambda (testdir builddir)
+     (let* ((proj (ede-add-project-to-global-list
+                   (ede-compdb-project "TESTPROJ"
+                                       :compdb-file (expand-file-name "compile_commands.json" builddir)
+                                       :file (expand-file-name "CMakeLists.txt" testdir))))
+            (hellocpp (expand-file-name "hello.cpp" testdir)))
+
+       (let ((buf (find-file-noselect hellocpp)))
+         (unwind-protect
+             (with-current-buffer buf
+               ;; Should have set up the current project and target
+               (should (eq proj (ede-current-project)))
+               (should (oref ede-object compilation))
+
+               (let* ((ret (ede-compdb-flymake-init)))
+                 ;; Init function needs to return a list of (compiler, args, dir)
+                 (should (listp ret))
+                 (should (= 3 (length ret)))
+
+                 ;; Args should be processed correctly
+                 (should (cl-search '("-o" "/dev/null") (nth 1 ret) :test 'equal))
+                 (should (not (cl-find "-MT" (nth 1 ret) :test 'equal)))
+                 (should (not (cl-find hellocpp (nth 1 ret) :test 'equal)))
+                 (should (not (cl-find "-c" (nth 1 ret) :test 'equal)))
+
+                 ;; Directory should be the build dir
+                 (should (file-equal-p builddir (nth 2 ret)))
+                 ))
+           (kill-buffer buf)
+           ))
+       ))))
+
 (ert-deftest ninja-autoload-project ()
   "Tests autoloading of ninja projects when rules.ninja files are discovered"
   ;;:expected-result :passed ;; TODO failed if we can't locate ninja on the path

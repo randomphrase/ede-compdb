@@ -258,6 +258,46 @@ from the command line (which is most of them!)"
   "Compile the current target THIS."
   (project-compile-target (oref this project) this))
 
+(defun ede-compdb-flymake-init ()
+  "Init function suitable for use with `flymake-mode'."
+  (when (and ede-object (slot-boundp ede-object :compilation) (oref ede-object :compilation))
+    (let* ((comp (oref ede-object compilation))
+           (args (split-string (get-command-line comp)))
+           (temp-file (flymake-init-create-temp-buffer-copy
+                       'flymake-create-temp-inplace))
+           (local-file (file-relative-name
+                        temp-file
+                        (file-name-directory buffer-file-name)))
+           ret)
+      ;; Process args, building up a new list as we go. Each new element is added to the head of the
+      ;; list, so we need to reverse it once done
+      (while args
+        (let ((argi (pop args)))
+          (cond
+            ;; substitude /dev/null for the output file
+           ((equal argi "-o")
+            (setq ret (cons "/dev/null" (cons argi ret)))
+            (pop args))
+
+            ;; substitute -S for -c (ie just compile, don't assemble)
+           ((equal argi "-c")
+            (setq ret (cons "-S" ret)))
+
+           ;; Don't do any makefile generation
+           ((member argi '("-M" "-MM" "-MMD" "-MG" "-MP" "-MD")))
+           ((member argi '("-MF" "-MT" "-MQ"))
+            (pop args))
+
+            ;; substitute temp-file for the input file
+           ((file-equal-p (expand-file-name argi (oref comp directory)) buffer-file-name)
+            (setq ret (cons temp-file ret)))
+           (t
+            (setq ret (cons argi ret)))
+           )))
+      (setq ret (reverse ret))
+      (list (pop ret) ret (oref comp directory))
+      )))
+
 
 ;;; ede-compdb-project methods:
 
