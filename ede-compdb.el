@@ -70,7 +70,7 @@
 (defclass compdb-entry (eieio-named)
   (
    (command-line
-    :type string :initarg :command-line
+    :type string :initarg :command-line :protection :protected
     :documentation "The full command line to compile a given file")
    (directory
     :type string :initarg :directory
