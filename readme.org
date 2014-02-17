@@ -7,11 +7,12 @@ EDE-compdb is a library that enables the Emacs Development Environment (EDE), wh
 Features:
 - Reads compilation database on-demand and provides include paths and preprocessor symbols to the Semantic parser
 - For GCC-compatible compilers, reads the internal include paths (no need to use ~semantic-gcc-setup~)
-- Many EDE commands supported, such as "C-c . c" to build the current target (source file)
+- Most EDE commands supported, such as "C-c . c" to build the current target (source file)
 - Autoloads based on the presence of ~compile_commands.json~ file, with no additional configuration typically required
 - Supports multiple build configurations (eg Debug, Release) and corresponding build directories
-- Supports [[http://www.illusori.co.uk/projects/emacs-flymake/][Flymake]], allowing source files to be checked on-the-fly
-- (For Ninja projects only) Automatically generates the compilation database, and loads and caches available phony build targets
+- Supports [[http://www.illusori.co.uk/projects/emacs-flymake/][Flymake]], allowing source files to be checked on-the-fly with no additional setup required
+- (For Ninja projects only) Automatically generates the compilation database as required without needing to generate a ~compile_commands.json~ file
+- (For Ninja projects only) Loads and caches available phony build targets (eg "test") for convenient builds
 
 License: GPLv2
 
@@ -32,7 +33,7 @@ $ cmake -DCMAKE_EXPORT_COMPILE_COMMANDS=TRUE .
 
 This will generate build files in the source directory, as well as a ~compile_commands.json~ file, which is the compilation database.
 
-Note that if you are using the [[http://martine.github.io/ninja/][Ninja build tool]], you don't need to generate the ~compile_commands.json~ file, because the compilation database will be generated dynamically.
+Note that if you are using the [[http://martine.github.io/ninja/][Ninja build tool]], you don't need to generate the ~compile_commands.json~ file, because ninja can generate the compilation database as-needed.
 
 Now open any of your source files in emacs, and you should see all the includes correctly parsed. Be aware that due to a limitation in the current CEDET, if you use "Summarize includes current buffer" you will *NOT* see the project include path for the current source file.
 
@@ -88,6 +89,14 @@ In this (admittedly complex) example, we have a possible four different types of
 
 The ~:build-command~ attribute sets the command to be used to build the entire project. This is available using the existing EDE shortcuts (eg "C-c . C" by default). This command is run from the current configuration directory.
 
+** Header files
+
+One of the limitations of using the compilation database is that it only contains the compilation commands for source files. However files such as header files are not generally compiled independently, hence are not generally inserted into the compilation database. This means that although header files are still detected as part of the project, are not assigned the include paths and preprocessor symbols which are available to source files.
+
+EDE-compdb works around this limitation using the built-in emacs function ~ff-get-other-file~. This is a function which returns an "other" file, the exact definition of which is user-configurable. By default, ~ff-get-other-file~ will search the current directory for an equivalent ~.cpp~ file, if the current buffer is visiting an ~.hpp~ file. Other directories can be searched, and indeed custom functions can be provided to search for arbitary files.
+
+In general, you should ensure that ~ff-get-other-file~ works correctly for the header files in your project. This ensures that EDE-compdb can locate the corresponding source file, and the correct include paths and preprocessor symbols are provided to the CEDET parser.
+
 ** Flymake Support
 
 The ~ede-compdb-flymake-init~ function is suitable for use with [[http://www.illusori.co.uk/projects/emacs-flymake/][flymake-mode]], which enables on-the-fly compilation checking of the current buffer. To configure it, simply add the following to your emacs init file:
@@ -139,12 +148,16 @@ Use of the compilation database is becoming more and more common, particularly f
 
 There is an ert test suite which uses a sample CMake project, with a temporary directory as a build directory. CMake, Ninja and a C++ compiler are required to run these tests successfully.
 
-** Current limitations/TODOs:
+** Current limitations/TODOs/Wishlist:
 
 - As stated above, if you use "Summarize includes current buffer" you will *NOT* see the system include path for the buffer. The reason is that the include path is set on the target, and not on the project. However, the summarize function only prints out the system include path for the project, and not the target. You can of course use ~(ede-system-include-path ede-object)~ to check the include path instead.
 
-- Project files which are not explicitly in the compilation database may not be parsed correctly. For example, header files are not generally compiled independently, hence are not generally inserted into the compilation database. This means that although header files are still detected as part of the project, are not assigned the include paths and preprocessor symbols which are available to source files. The plan to fix this is to provide a mechanism for header files to be "matched" with a corresponding source file, from which they can attach a compilation database entry.
+- EDE-compdb only does very basic parsing of the GCC (or compatible) command line options, and doesn't support any of the more esoteric GCC-specfic ones such as "-imacros", "-idirafter", "-iprefix", etc.
 
-- It only does very basic parsing of the GCC (or compatible) command line options, and doesn't support any of the more esoteric GCC-specfic ones such as "-imacros", "-idirafter", "-iprefix", etc.
+- Currently uses the json module for loading the compilation database. This can get slow for large projects.
 
-- Currently uses the json module for loading the compilation database. We'll keep an eye on this to see what the performance is like, but it looks OK so far.
+- Full Ninja target heirarchy parsing. Basically we can use the ninja -t targets tool to query the target heirarchy. We would need to insert the source targets into the heirarchy at the right locations.
+
+- Support Debug/Run target. This doesn't really make sense for an individual source file, but we should be able to prompt for or guess (as per the previous point) the appropriate executable.
+
+- Automated setup of build directory. Given a compdb generator (eg cmake) we should be able to automate the setup of a new build directory. Ideally this would work for a new source tree.
