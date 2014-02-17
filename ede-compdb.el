@@ -378,9 +378,8 @@ lookup on the filename calculated from `ff-other-file-name'."
     (dolist (T (oref this targets))
 
       ;; Update compilation
-      (when (oref T :compilation)
-        (with-current-buffer (get-file-buffer (expand-file-name (oref T :path) oldprojdir))
-          (oset T :compilation (compdb-entry-for-buffer this))))
+      (with-current-buffer (get-file-buffer (expand-file-name (oref T :path) oldprojdir))
+        (oset T :compilation (compdb-entry-for-buffer this)))
 
       (when (and (not (equal oldprojdir newprojdir)) (slot-boundp T 'path))
         (oset T :path (ede-convert-path this (expand-file-name (oref T path) oldprojdir))))
