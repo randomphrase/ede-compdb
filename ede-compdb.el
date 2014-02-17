@@ -258,6 +258,11 @@ from the command line (which is most of them!)"
   "Compile the current target THIS."
   (project-compile-target (oref this project) this))
 
+(defun ede-object-system-include-path ()
+  "Returns the system include path for the current buffer"
+  (when ede-object
+    (ede-system-include-path ede-object)))
+
 (defun ede-compdb-flymake-init ()
   "Init function suitable for use with `flymake-mode'."
   (when (and ede-object (slot-boundp ede-object :compilation) (oref ede-object :compilation))

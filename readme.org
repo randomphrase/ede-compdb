@@ -11,6 +11,7 @@ Features:
 - Autoloads based on the presence of ~compile_commands.json~ file, with no additional configuration typically required
 - Supports multiple build configurations (eg Debug, Release) and corresponding build directories
 - Supports [[http://www.illusori.co.uk/projects/emacs-flymake/][Flymake]], allowing source files to be checked on-the-fly with no additional setup required
+- Easy integration with [[https://github.com/mooz/auto-complete-c-headers][auto-complete-c-headers]], for include file completion
 - (For Ninja projects only) Automatically generates the compilation database as required without needing to generate a ~compile_commands.json~ file
 - (For Ninja projects only) Loads and caches available phony build targets (eg "test") for convenient builds
 
@@ -111,6 +112,15 @@ The ~ede-compdb-flymake-init~ function is suitable for use with [[http://www.ill
 #+END_SRC
 
 This will enable the use of flymake for all ~.cpp~ and ~.hpp~ files. Header files are supported, as long as a matching source file can be located, as described above.
+
+** auto-complete-c-headers
+
+The [[https://github.com/mooz/auto-complete-c-headers][auto-complete-c-headers]] package provides auto-completion for C and C++ header files. To do this successfully, it needs to know the current include directories. EDE-compdb can be configured to provide this information, as in the following example:
+
+#+BEGIN_SRC emacs-lisp
+(add-hook 'ede-minor-mode-hook (lambda ()
+    (setq achead:get-include-directories-function 'ede-object-system-include-path)))
+#+END_SRC
 
 ** Ninja Build Tool
 
