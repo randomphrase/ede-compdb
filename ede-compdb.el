@@ -34,7 +34,13 @@
 
 (require 'ede)
 (require 'json)
-(require 'cl-lib)
+
+(eval-when-compile
+  (require 'cl-lib))
+
+(declare-function ff-other-file-name "find-file")
+(declare-function semantic-gcc-fields "semantic/bovine/gcc")
+(declare-function semantic-gcc-query "semantic/bovine/gcc")
 
 ;;; Autoload support
 
@@ -276,9 +282,6 @@ from the command line (which is most of them!)"
            (args (split-string (get-command-line comp)))
            (temp-file (flymake-init-create-temp-buffer-copy
                        'flymake-create-temp-inplace))
-           (local-file (file-relative-name
-                        temp-file
-                        (file-name-directory buffer-file-name)))
            ret)
       ;; Process args, building up a new list as we go. Each new element is added to the head of the
       ;; list, so we need to reverse it once done
@@ -340,7 +343,7 @@ current configuration directory is used if CONFIG not set."
   "Returns a path to the current compdb file"
   (expand-file-name (oref this compdb-file) (current-configuration-directory-path this)))
 
-(defmethod insert-compdb ((this ede-compdb-project) compdb-path)
+(defmethod insert-compdb ((_this ede-compdb-project) compdb-path)
   "Inserts the compilation database into the current buffer"
   (insert-file-contents compdb-path))
 
@@ -378,10 +381,10 @@ lookup on the filename calculated from `ff-other-file-name'."
     (with-temp-buffer
       (insert-compdb this compdb-path)
       (goto-char (point-min))
-      (message "Reading Compilation Database...")
+      (message "Reading Compilation Database from %s ..." compdb-path)
       (setq json-compdb (json-read)))
 
-    (let ((progress-reporter (make-progress-reporter (format "Building Compilation Entries..." compdb-path) 0 (length json-compdb)))
+    (let ((progress-reporter (make-progress-reporter "Building Compilation Entries..." 0 (length json-compdb)))
           (iter 1))
       
       (dolist (E json-compdb)
@@ -452,7 +455,7 @@ lookup on the filename calculated from `ff-other-file-name'."
                    (not (equal (oref this compdb-file-timestamp) (nth 5 stats)))))
       (project-rescan this))))
 
-(defmethod initialize-instance :AFTER ((this ede-compdb-project) &rest fields)
+(defmethod initialize-instance :AFTER ((this ede-compdb-project) &rest _fields)
   (unless (slot-boundp this 'targets)
     (oset this :targets nil))
 
@@ -491,7 +494,7 @@ lookup on the filename calculated from `ff-other-file-name'."
   )
 
 (defmethod ede-find-subproject-for-directory ((proj ede-compdb-project)
-                                              dir)
+                                              _dir)
   "Return PROJ, for handling all subdirs below DIR."
   proj)
 
@@ -532,7 +535,7 @@ of `ede-compdb-target' or a string."
     (compilation-start (oref this build-command))
     ))
 
-(defmethod ede-menu-items-build ((this ede-compdb-project) &optional current)
+(defmethod ede-menu-items-build ((_this ede-compdb-project) &optional _current)
   "Override to add a custom target menu item"
   (append (call-next-method)
           (list
@@ -566,7 +569,7 @@ of `ede-compdb-target' or a string."
         (progress-reporter-done progress-reporter))
       )))
 
-(defmethod insert-compdb ((this ede-ninja-project) compdb-path)
+(defmethod insert-compdb ((_this ede-ninja-project) compdb-path)
   "Use ninja's compdb tool to insert the compilation database
 into the current buffer. COMPDB-PATH represents the current path
 to :compdb-file"
