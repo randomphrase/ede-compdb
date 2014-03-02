@@ -30,11 +30,11 @@
 ;; 
 ;; See the accompanying readme.org file for quickstart and usage information
 
+;;; Code:
+
 (require 'ede)
 (require 'json)
 (require 'cl-lib)
-
-;;; Code:
 
 ;;; Autoload support
 
