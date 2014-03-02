@@ -1,4 +1,4 @@
-;; ede-compdb.el --- Support for compilation database projects in EDE  -*- lexical-binding: t; -*-
+;;; ede-compdb.el --- Support for compilation database projects in EDE  -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2013-2014 Alastair Rankine
 
@@ -22,7 +22,13 @@
 
 ;;; Commentary:
 
-;; See the accompanying readme.org for quickstart and usage information
+;; EDE-compdb is a library that enables the Emacs Development Environment (EDE), to be used with a
+;; compilation database, as provided by build tools such as CMake or Ninja. This enables CEDET to be
+;; automatically configured for use to support parsing, navigation, completion, and so on. This is
+;; especially useful for C and C++ projects which are otherwise quite tricky to configure for use
+;; with CEDET and other libraries.
+;; 
+;; See the accompanying readme.org file for quickstart and usage information
 
 (require 'ede)
 (require 'json)
