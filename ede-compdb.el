@@ -4,6 +4,7 @@
 
 ;; Author: Alastair Rankine <alastair@girtby.net>
 ;; Keywords: development ninja build cedet ede
+;; Package-Requires: ((ede "1.2") (semantic "2.2") (cl-lib "0.4"))
 
 ;; This file is not part of GNU Emacs.
 
