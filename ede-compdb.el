@@ -41,7 +41,6 @@
 (eval-when-compile
   (require 'cl-lib))
 
-(declare-function ff-other-file-name "find-file")
 (declare-function semantic-gcc-fields "semantic/bovine/gcc")
 (declare-function semantic-gcc-query "semantic/bovine/gcc")
 
@@ -178,7 +177,6 @@
 ;;; compdb-entry methods:
 
 (defmethod get-command-line ((this compdb-entry))
-  ;; TODO: Can this be replaced by an :accessor slot option?
   (parse-command-line-if-needed this)
   (oref this command-line))
 
@@ -186,7 +184,7 @@
   "For performance reasons we delay parsing the compdb command
 line until needed. Call this before accessing any slots derived
 from the command line (which is most of them!)"
-  ;; parse the command line if needed - compiler slot is used to determine whether we need to
+  ;; compiler slot is used to determine whether we need to parse the command line
   (unless (slot-boundp this :compiler)
     (parse-command-line this)))
 
@@ -204,13 +202,18 @@ from the command line (which is most of them!)"
           (setq defval (match-string 4 argi))
           (setq argi (match-string 1 argi)))
         (cond
-         ((equal argi "-D") (object-add-to-list this :defines (cons (or argval (pop args)) defval) t))
-         ((equal argi "-U") (object-add-to-list this :undefines (or argval (pop args)) t))
+         ((equal argi "-D")
+          (object-add-to-list this :defines (cons (or argval (pop args)) defval) t))
+         ((equal argi "-U")
+          (object-add-to-list this :undefines (or argval (pop args)) t))
          ;; TODO: support gcc notation "=dir" where '=' is the sysroot prefix
-         ((member argi '("-I" "-F" "-isystem")) (object-add-to-list this :include-path (or argval (pop args)) t))
-         ((equal argi "-include") (object-add-to-list this :includes (pop args) t))
+         ((member argi '("-I" "-F" "-isystem"))
+          (object-add-to-list this :include-path (or argval (pop args)) t))
+         ((equal argi "-include")
+          (object-add-to-list this :includes (pop args) t))
          ;; TODO: -nostdinc, -nostdlibinc, -nobuildinic
-         ((not seenopt) (oset this compiler (if (slot-boundp this :compiler) (concat (oref this compiler) " " argi) argi)))
+         ((not seenopt)
+          (oset this compiler (if (slot-boundp this :compiler) (concat (oref this compiler) " " argi) argi)))
          )
         (when (char-equal ?- (string-to-char argi))
           (setq seenopt t)
@@ -352,24 +355,71 @@ current configuration directory is used if CONFIG not set."
   "Inserts the compilation database into the current buffer"
   (insert-file-contents compdb-path))
 
+(defun ff-all-other-files ()
+  "Returns a list of all 'other' files for the current buffer,
+regardless of whether they exist or not. This uses the same rules
+and variables as defined for `ff-other-file-name', but does not
+stop at the first file found."
+  (require 'find-file)
+
+  (let* ((dirs (ff-list-replace-env-vars
+                (if (symbolp ff-search-directories)
+                    (symbol-value ff-search-directories)
+                  ff-search-directories)))
+         (alist (if (symbolp ff-other-file-alist)
+                    (symbol-value ff-other-file-alist)
+                  ff-other-file-alist))
+         (fname (file-name-nondirectory (buffer-file-name)))
+         (basename (file-name-sans-extension fname))
+         (suffixes (car (assoc-default fname alist 'string-match)))
+         res)
+
+    (when suffixes
+      (when (and (atom suffixes) (fboundp suffixes))
+        (setq suffixes (funcall suffixes (buffer-file-name))))
+        
+      ;; A couple of minor differences from ff-other-file-name:
+      ;;
+      ;; 1. We search by suffix per directory, not the other way around.
+      ;; 2. We don't expand wildcards in the directory list.
+      ;;
+      ;; The doco for ff-search-directories says it will expand '*' chars in the
+      ;; directory list, and gives an example of "/usr/local/*/src/*". But in
+      ;; fact the ff-get-file-name function will only handle terminating '*'
+      ;; characters. However, expanding wildcards here might lead to an
+      ;; explosion of paths, so let's just not...
+      (dolist (D dirs)
+        (dolist (S suffixes)
+          (add-to-list 'res (concat (file-name-as-directory D) (concat basename S)) t)
+          )))
+    res))
+
 (defmethod compdb-entry-for-buffer ((this ede-compdb-project))
   "Returns an instance of ede-compdb-entry suitable for use with
 the current buffer. In general, we do a lookup on the current
-buffer file in the compdb hashtable. If not present, we do a
-lookup on the filename calculated from `ff-other-file-name'."
-  (require 'find-file)
-  (let ((ret (gethash (file-truename (buffer-file-name)) (oref this compdb)))
-        (ignore ff-ignore-include)
-        other-name)
-    (or ret
-        (progn
-          (setq ff-ignore-include t)
-          (setq other-name (ff-other-file-name))
-          (when other-name
-            (setq ret (gethash (file-truename other-name) (oref this compdb))))
-          (setq ff-ignore-include ignore)
-          ret))
-    ))
+buffer file in the compdb hashtable. If not present, we look
+through the list of other files provided by `ff-all-other-files'
+an d pick one that is present in the compdb hashtable."
+  (let ((fname (file-truename (buffer-file-name))))
+    (or 
+     ;; If the file is in the compilation database, use that
+     (gethash fname (oref this compdb))
+     ;; If the 'other' files are in the compilation database, use the first match
+     (car (remq nil (mapcar
+                     (lambda (T) (gethash (file-truename T) (oref this compdb)))
+                     (ff-all-other-files))))
+     ;; Otherwise search the compilation database for the 'best' match. In this
+     ;; case the best match is the one with the longest matching prefix.
+     (let (bestmatch bestmatchlen)
+       (maphash (lambda (path entry)
+                  (let ((matchlen (cl-mismatch path fname)))
+                    (when (or (not bestmatchlen) (< bestmatchlen matchlen))
+                      (setq bestmatch entry)
+                      (setq bestmatchlen matchlen)
+                      )))
+                (oref this compdb))
+       bestmatch)
+     )))
 
 (defmethod project-rescan ((this ede-compdb-project))
   "Reload the compilation database."

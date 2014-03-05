@@ -118,11 +118,11 @@ in-source build"
                   (ede-compdb-project "TESTPROJ"
                                       :compdb-file (expand-file-name "compile_commands.json" tmpdir)
                                       :file (expand-file-name "CMakeLists.txt" srcdir))))
-            (hellocpp (expand-file-name "hello.cpp" srcdir)))
+            (maincpp (expand-file-name "main.cpp" srcdir)))
 
        (should (eq proj (ede-directory-get-open-project srcdir)))
 
-       (let ((buf (find-file-noselect hellocpp)))
+       (let ((buf (find-file-noselect maincpp)))
          (unwind-protect
              (with-current-buffer buf
                ;; Should have set up the current project and target
@@ -144,18 +144,19 @@ in-source build"
                   (ede-compdb-project "TESTPROJ"
                                       :compdb-file (expand-file-name "compile_commands.json" builddir)
                                       :file (expand-file-name "CMakeLists.txt" testdir))))
-           (hellocpp (expand-file-name "hello.cpp" testdir))
+           (maincpp (expand-file-name "main.cpp" testdir))
            (worldcpp (expand-file-name "world/world.cpp" testdir))
-           (testbufs nil))
+           (utilityhpp (expand-file-name "utility/utility.hpp" testdir))
+           (testbufs))
 
        ;; Basic sanity checks on the project itself
        (should (eq proj (ede-directory-get-open-project testdir)))
-       (should (gethash (file-truename hellocpp) (oref proj compdb)))
+       (should (gethash (file-truename maincpp) (oref proj compdb)))
 
        ;; Now we'll open source files and check that they are parsed correctly
        (unwind-protect
            (progn
-             (let ((buf (find-file-noselect hellocpp)))
+             (let ((buf (find-file-noselect maincpp)))
                (setq testbufs (cons buf testbufs))
                (with-current-buffer buf
                  ;; Should have set up the current project and target
@@ -188,31 +189,34 @@ in-source build"
                    )
                  ))
 
-             ;; Try a file in a subdirectory
-             (let ((buf (find-file-noselect worldcpp)))
+             ;; All of the world.[chi]pp files should also be parsed
+             (dolist (EXT '(".cpp" ".hpp" ".ipp"))
+               (let* ((filepath (expand-file-name (concat "world/world" EXT) testdir))
+                      (buf (find-file-noselect filepath)))
+                 (setq testbufs (cons buf testbufs))
+                 (with-current-buffer buf
+                   (should (eq proj (ede-current-project)))
+                   (should (semantic-active-p))
+                   (should (not semantic-parser-warnings))
+
+                   ;; Compilation should be pointed to world.cpp
+                   (should (eq (oref ede-object compilation)
+                               (gethash (file-truename worldcpp) (oref proj compdb))))
+                 )))
+
+             ;; Try a header with no matching source file
+             (let ((buf (find-file-noselect utilityhpp)))
                (setq testbufs (cons buf testbufs))
                (with-current-buffer buf
-                 ;; Should have set up the current project and target with compilation
-                 (should (eq proj (ede-current-project)))
-                 (should (oref ede-object compilation))
+                   (should (eq proj (ede-current-project)))
+                   (should (semantic-active-p))
+                   (should (not semantic-parser-warnings))
 
-                 ;; Should have been parsed
-                 (should (semantic-active-p))
-                 (should (not semantic-parser-warnings))
+                   ;; Compilation should be pointed to main.cpp
+                   (should (eq (oref ede-object compilation)
+                               (gethash (file-truename maincpp) (oref proj compdb))))
                  ))
 
-             ;; Try a header file
-             (let ((buf (find-file-noselect (expand-file-name "world/world.hpp" testdir))))
-               (setq testbufs (cons buf testbufs))
-               (with-current-buffer buf
-                 ;; Should have set up the current project
-                 (should ede-object)
-                 (should (eq proj (ede-current-project)))
-                 ;; Compilation should be pointed to world.cpp
-                 (should (eq (oref ede-object compilation)
-                             (gethash (file-truename worldcpp) (oref proj compdb))))
-                 ))
-             
              ;; Try a generated source file
              (let ((buf (find-file-noselect (expand-file-name "build_type.cpp" builddir))))
                (setq testbufs (cons buf testbufs))
@@ -232,7 +236,7 @@ in-source build"
 
              ;; All compilation entries should have been updated
              ;; FIXME: need ede-object for all buffers, including above
-             (with-current-buffer (get-file-buffer hellocpp)
+             (with-current-buffer (get-file-buffer maincpp)
                ;; Check that compilation entry has been updated
                (should (eq (oref ede-object compilation)
                            (gethash (file-truename buffer-file-name) (oref proj compdb)))))
@@ -264,8 +268,8 @@ in-source build"
              
              ;; Check that compiler includes are present in the project includes
              (when (car ede-compdb-compiler-cache)
-               (let* ((hellocpp (expand-file-name "hello.cpp" testdir))
-                      (buf (find-file-noselect hellocpp)))
+               (let* ((maincpp (expand-file-name "main.cpp" testdir))
+                      (buf (find-file-noselect maincpp)))
                  (unwind-protect
                      (let* ((target (ede-find-target proj buf))
                             (entry (oref target compilation))
@@ -322,9 +326,9 @@ in-source build"
   (insource-build-fixture
    t
    (lambda (dir)
-     (dolist (f '("hello.cpp" "world/world.cpp"))
-       (let* ((hellocpp (expand-file-name f dir))
-              (buf (find-file-noselect hellocpp)))
+     (dolist (f '("main.cpp" "world/world.cpp"))
+       (let* ((maincpp (expand-file-name f dir))
+              (buf (find-file-noselect maincpp)))
          (unwind-protect
              (with-current-buffer buf
                ;; Should have set up the current project and target
@@ -343,9 +347,9 @@ in-source build"
                    (ede-compdb-project "TESTPROJ"
                                        :compdb-file (expand-file-name "compile_commands.json" builddir)
                                        :file (expand-file-name "CMakeLists.txt" testdir))))
-            (hellocpp (expand-file-name "hello.cpp" testdir)))
+            (maincpp (expand-file-name "main.cpp" testdir)))
 
-       (let ((buf (find-file-noselect hellocpp)))
+       (let ((buf (find-file-noselect maincpp)))
          (unwind-protect
              (with-current-buffer buf
                ;; Should have set up the current project and target
@@ -360,7 +364,7 @@ in-source build"
                  ;; Args should be processed correctly
                  (should (cl-search '("-o" "/dev/null") (nth 1 ret) :test 'equal))
                  (should (not (cl-find "-MT" (nth 1 ret) :test 'equal)))
-                 (should (not (cl-find hellocpp (nth 1 ret) :test 'equal)))
+                 (should (not (cl-find maincpp (nth 1 ret) :test 'equal)))
                  (should (not (cl-find "-c" (nth 1 ret) :test 'equal)))
 
                  ;; Directory should be the build dir
@@ -376,9 +380,9 @@ in-source build"
   (insource-build-fixture
    nil
    (lambda (dir)
-     (dolist (f '("hello.cpp" "world/world.cpp"))
-       (let* ((hellocpp (expand-file-name f dir))
-              (buf (find-file-noselect hellocpp)))
+     (dolist (f '("main.cpp" "world/world.cpp"))
+       (let* ((maincpp (expand-file-name f dir))
+              (buf (find-file-noselect maincpp)))
          (unwind-protect
              (with-current-buffer buf
                ;; Should have set up the current project and target

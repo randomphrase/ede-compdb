@@ -7,6 +7,7 @@
 
 extern const char * BUILD_TYPE;
 
-void HelloWorld(std::ostream&);
+template <typename Stream>
+void HelloWorld(Stream&);
 
 #endif

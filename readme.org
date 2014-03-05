@@ -96,9 +96,13 @@ The ~:build-command~ attribute sets the command to be used to build the entire p
 
 One of the limitations of using the compilation database is that it only contains the compilation commands for source files. However files such as header files are not generally compiled independently, hence are not generally inserted into the compilation database. This means that although header files are still detected as part of the project, are not assigned the include paths and preprocessor symbols which are available to source files.
 
-EDE-compdb works around this limitation using the built-in emacs function ~ff-get-other-file~. This is a function which returns an "other" file, the exact definition of which is user-configurable. By default, ~ff-get-other-file~ will search the current directory for an equivalent ~.cpp~ file, if the current buffer is visiting an ~.hpp~ file. Other directories can be searched, and indeed custom functions can be provided to search for arbitary files.
+EDE-compdb works around this limitation using some heuristics to locate a compilation database entry for each buffer file. This is the process that is followed when a new file is opened within an existing EDE-compdb project.
 
-In general, you should ensure that ~ff-get-other-file~ works correctly for the header files in your project. This ensures that EDE-compdb can locate the corresponding source file, and the correct include paths and preprocessor symbols are provided to the CEDET parser.
+1. If the current buffer file is in the compilation database, that is used.
+2. If there is an "other" file associated with the current buffer which is also in the compilation database, that is used. The definition of an "other" file is almost exactly the same as that used by the the built-in emacs function =ff-get-other-file=. By default, =ff-get-other-file= will search the current directory for an equivalent ~.cpp~ file, so if the current buffer is visiting an ~.hpp~ file and the equivalent ~.cpp~ file is in the compilation database, that is used. Other directories can be searched, and indeed custom functions can be provided to search for arbitary files.
+3. Otherwise the compilation database is searched, and the entry which has the longest common prefix with the current buffer file is used. So for example if you are visiting ~include/config.hpp~, and there is an entry for ~main.cpp~, this will be used in preference to ~src/config.cpp~.
+
+This technique ensures that every header file should be matched to a compilation database entry. To see the compilation database entry for a given header file, just compile it! (Use =ede-compile-target=, which is bound to ~C-c . c~ by default).
 
 ** Flymake Support
 

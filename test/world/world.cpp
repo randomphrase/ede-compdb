@@ -1,8 +1,5 @@
-#include "world.hpp"
+#include "world.ipp"
 #include <ostream>
 
-void HelloWorld(std::ostream& os)
-{
-    os << "Hello, world!\n"
-       << "This is a " << BUILD_TYPE << " build.\n";
-}
+// Explicitly instantiate template function:
+template void HelloWorld<std::ostream>(std::ostream& os);
