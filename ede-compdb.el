@@ -65,21 +65,21 @@
                  
 ;;;###autoload
 (eval-after-load "ede/auto"
-  (ede-add-project-autoload
-   (ede-project-autoload "compdb"
-                         :file 'ede-compdb
-                         :proj-file "compile_commands.json"
-                         :load-type 'ede-compdb-load-project
-                         :class-sym 'ede-compdb-project)))
+  '(ede-add-project-autoload
+    (ede-project-autoload "compdb"
+                          :file 'ede-compdb
+                          :proj-file "compile_commands.json"
+                          :load-type 'ede-compdb-load-project
+                          :class-sym 'ede-compdb-project)))
 
 ;;;###autoload
 (eval-after-load "ede/auto"
-  (ede-add-project-autoload
-   (ede-project-autoload "ninja"
-                         :file 'ede-compdb
-                         :proj-file "build.ninja"
-                         :load-type 'ede-ninja-load-project
-                         :class-sym 'ede-ninja-project)))
+  '(ede-add-project-autoload
+    (ede-project-autoload "ninja"
+                          :file 'ede-compdb
+                          :proj-file "build.ninja"
+                          :load-type 'ede-ninja-load-project
+                          :class-sym 'ede-ninja-project)))
 
 
 ;;; Classes:
