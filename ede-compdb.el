@@ -57,27 +57,29 @@
 
 ;;;###autoload
 (defun ede-ninja-load-project (dir)
-  "Create an instnace of option `ede-ninja-project' for DIR."
+  "Create an instance of option `ede-ninja-project' for DIR."
   ;; TODO: Other project types keep their own cache of active projects - do we need to as well?
   (ede-ninja-project (file-name-nondirectory (directory-file-name dir))
                      :compdb-file "build.ninja"
                      :directory (file-name-as-directory dir)))
                  
 ;;;###autoload
-(ede-add-project-autoload
- (ede-project-autoload "compdb"
-                       :file 'ede-compdb
-                       :proj-file "compile_commands.json"
-                       :load-type 'ede-compdb-load-project
-                       :class-sym 'ede-compdb-project))
+(eval-after-load "ede/auto"
+  (ede-add-project-autoload
+   (ede-project-autoload "compdb"
+                         :file 'ede-compdb
+                         :proj-file "compile_commands.json"
+                         :load-type 'ede-compdb-load-project
+                         :class-sym 'ede-compdb-project)))
 
 ;;;###autoload
-(ede-add-project-autoload
- (ede-project-autoload "ninja"
-                       :file 'ede-compdb
-                       :proj-file "build.ninja"
-                       :load-type 'ede-ninja-load-project
-                       :class-sym 'ede-ninja-project))
+(eval-after-load "ede/auto"
+  (ede-add-project-autoload
+   (ede-project-autoload "ninja"
+                         :file 'ede-compdb
+                         :proj-file "build.ninja"
+                         :load-type 'ede-ninja-load-project
+                         :class-sym 'ede-ninja-project)))
 
 
 ;;; Classes:
