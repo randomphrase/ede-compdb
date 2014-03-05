@@ -1,4 +1,4 @@
-;;; ede-compdb.el --- Support for compilation database projects in EDE  -*- lexical-binding: t; -*-
+;;; ede-compdb.el --- Support for compilation database projects in EDE
 
 ;; Copyright (C) 2013-2014 Alastair Rankine
 
