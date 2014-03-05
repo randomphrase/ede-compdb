@@ -22,7 +22,8 @@
 
 ;;; Commentary:
 
-;; See the accompanying readme.org for quickstart and usage information
+;; See the documentation at https://github.com/randomphrase/ede-compdb for
+;; quickstart and usage information
 
 ;;; Code:
 
