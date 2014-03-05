@@ -19,13 +19,15 @@ License: GPLv2
 
 ** Quickstart
 
-Download/clone the ~ede-compdb~ repo to a suitable directory and add it to your emacs ~load-path~. Add it to your ~.emacs~ file after loading CEDET, using:
+The easiest method to install EDE-compdb is via the [[http://melpa.milkbox.net/][MELPA package repository]]. No further configuration is needed with this method.
+
+Alternatively you can download/clone the ~ede-compdb~ repo to a suitable directory and add it to your emacs ~load-path~. You should then it to your ~.emacs~ file after loading CEDET, using:
 
 #+BEGIN_SRC emacs-lisp
   (require 'ede-compdb)
 #+END_SRC
 
-Next you shoud ensure create the compilation database. If you are using [[http://www.cmake.org][CMake]] you can do something like the following:
+In order to use EDE-compdb you need to ensure your project has a compilation database. If you are using [[http://www.cmake.org][CMake]] you can do something like the following:
 
 #+BEGIN_EXAMPLE
 $ cd .../yourproj
