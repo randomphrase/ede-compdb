@@ -25,8 +25,8 @@
 
 ;; EDE-compdb is a library that enables the Emacs Development Environment (EDE),
 ;; to be used with a compilation database, as provided by build tools such as
-;; CMake or Ninja. This enables CEDET to be automatically configured for use to
-;; support parsing, navigation, completion, and so on. This is especially useful
+;; CMake or Ninja.  This enables CEDET to be automatically configured for use to
+;; support parsing, navigation, completion, and so on.  This is especially useful
 ;; for C and C++ projects which are otherwise quite tricky to configure for use
 ;; with CEDET and other libraries.
 ;; 
@@ -279,12 +279,12 @@ from the command line (which is most of them!)"
   (project-compile-target (oref this project) this))
 
 (defun ede-object-system-include-path ()
-  "Returns the system include path for the current buffer"
+  "Return the system include path for the current buffer."
   (when ede-object
     (ede-system-include-path ede-object)))
 
 (defun ede-compdb-flymake-init ()
-  "Init function suitable for use with `flymake-mode'."
+  "Init function suitable for use with function `flymake-mode'."
   (when (and ede-object (slot-boundp ede-object :compilation) (oref ede-object :compilation))
     (let* ((comp (oref ede-object compilation))
            (args (split-string (get-command-line comp)))
@@ -356,8 +356,8 @@ current configuration directory is used if CONFIG not set."
   (insert-file-contents compdb-path))
 
 (defun ff-find-other-file-if (test)
-  "Returns the first 'other' file for the current buffer,
-which satisfies TEST. Generation of other files uses the same
+  "Return the first 'other' file for the current buffer which satisfies TEST.
+Generation of other files uses the same
 rules and variables as defined for `ff-other-file-name', but does
 not stop at the first file found."
   (require 'find-file)
@@ -402,7 +402,7 @@ buffer file in the compdb hashtable. If not present, we look
 through the list of other files provided by `ff-all-other-files'
 an d pick one that is present in the compdb hashtable."
   (let ((fname (file-truename (buffer-file-name))))
-    (or 
+    (or
      ;; If the file is in the compilation database, use that
      (gethash fname (oref this compdb))
      ;; If the 'other' files are in the compilation database, use the first match
@@ -596,7 +596,7 @@ of `ede-compdb-target' or a string."
            [ "Set Configuration Directory..." ede-compdb-set-configuration-directory ])))
 
 (defun ede-compdb-set-configuration-directory (dir &optional proj config)
-  "Set the configuration directory of project PROJ for configuration CONFIG to DIR."
+  "Set DIR to the configuration directory of PROJ with configuration CONFIG."
   (interactive "DConfiguration Directory: ")
   (set-configuration-directory (or proj (ede-current-project)) dir config))
 
