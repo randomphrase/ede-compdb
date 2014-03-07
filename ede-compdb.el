@@ -355,11 +355,11 @@ current configuration directory is used if CONFIG not set."
   "Inserts the compilation database into the current buffer"
   (insert-file-contents compdb-path))
 
-(defun ff-all-other-files ()
-  "Returns a list of all 'other' files for the current buffer,
-regardless of whether they exist or not. This uses the same rules
-and variables as defined for `ff-other-file-name', but does not
-stop at the first file found."
+(defun ff-find-other-file-if (test)
+  "Returns the first 'other' file for the current buffer,
+which satisfies TEST. Generation of other files uses the same
+rules and variables as defined for `ff-other-file-name', but does
+not stop at the first file found."
   (require 'find-file)
 
   (let* ((dirs (ff-list-replace-env-vars
@@ -371,8 +371,7 @@ stop at the first file found."
                   ff-other-file-alist))
          (fname (file-name-nondirectory (buffer-file-name)))
          (basename (file-name-sans-extension fname))
-         (suffixes (car (assoc-default fname alist 'string-match)))
-         res)
+         (suffixes (car (assoc-default fname alist 'string-match))))
 
     (when suffixes
       (when (and (atom suffixes) (fboundp suffixes))
@@ -390,9 +389,11 @@ stop at the first file found."
       ;; explosion of paths, so let's just not...
       (dolist (D dirs)
         (dolist (S suffixes)
-          (add-to-list 'res (concat (file-name-as-directory D) (concat basename S)) t)
-          )))
-    res))
+          (let ((candidate (concat (file-name-as-directory D) (concat basename S))))
+            (when (funcall test candidate)
+              (return candidate)
+              ))))
+      )))
 
 (defmethod compdb-entry-for-buffer ((this ede-compdb-project))
   "Returns an instance of ede-compdb-entry suitable for use with
@@ -405,9 +406,7 @@ an d pick one that is present in the compdb hashtable."
      ;; If the file is in the compilation database, use that
      (gethash fname (oref this compdb))
      ;; If the 'other' files are in the compilation database, use the first match
-     (car (remq nil (mapcar
-                     (lambda (T) (gethash (file-truename T) (oref this compdb)))
-                     (ff-all-other-files))))
+     (ff-find-other-file-if (lambda (T) (gethash (file-truename T) (oref this compdb))))
      ;; Otherwise search the compilation database for the 'best' match. In this
      ;; case the best match is the one with the longest matching prefix.
      (let (bestmatch bestmatchlen)
