@@ -96,7 +96,7 @@ in-source build"
     (unwind-protect
         (progn
           ;; Prepopulate the compiler cache so that we know what to expect in it
-          (setq ede-compdb-compiler-cache '(("g++" . "/opt/gcc/include")))
+          (setq ede-compdb-compiler-cache '(("g++" "/opt/gcc/include")))
           (setq f (compdb-entry "foo.cpp" :command-line
                                 "g++ -Dfoo -Dbar=baz -Uqux -isystem /opt/quxx/include -I/opt/local/include -Iincludes -include bar.hpp main.cpp"))
 

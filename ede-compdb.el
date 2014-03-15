@@ -192,8 +192,8 @@
     (unless path
       (require 'semantic/bovine/gcc)
       ;; FIXME: this is pretty simplistic but it will do for now...
-      (setq path (cdr (assoc '--with-gxx-include-dir
-                              (semantic-gcc-fields (semantic-gcc-query comp "-v")))))
+      (setq path (list (cdr (assoc '--with-gxx-include-dir
+                                   (semantic-gcc-fields (semantic-gcc-query comp "-v"))))))
       ;; Try clang if GCC fails
       (unless path
         (setq path (ede-compdb-clang-get-system-includes comp)))
