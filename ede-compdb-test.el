@@ -135,6 +135,32 @@ in-source build"
          (kill-buffer buf)))
        ))))
 
+(ert-deftest parse-clang-system-includes ()
+  "Tests discovery of clang system includes"
+  (with-temp-buffer
+    ;; This is a real example from Apple Clang 5.0
+    (insert "clang -cc1 version 5.0 based upon LLVM 3.3svn default target x86_64-apple-darwin13.1.0
+ignoring nonexistent directory \"/usr/include/c++/v1\"
+ignoring nonexistent directory \"/usr/local/include\"
+#include \"...\" search starts here:
+#include <...> search starts here:
+ /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/../lib/c++/v1
+ /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/../lib/clang/5.0/include
+ /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/include
+ /usr/include
+ /System/Library/Frameworks (framework directory)
+ /Library/Frameworks (framework directory)
+End of search list.
+")
+    (goto-char (point-min))
+    
+    (should (equal (ede-compdb-parse-clang-system-includes)
+                   '("/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/c++/v1"
+                     "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/clang/5.0/include"
+                     "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/include"
+                     "/usr/include")))
+    ))
+
 (ert-deftest open-file-parsed ()
   "Tests the parsing of source files in a project. We ensure it correctly locates all include files, amongst other things."
   ;;:expected-result :passed ;; TODO failed if we can't locate cmake on the path

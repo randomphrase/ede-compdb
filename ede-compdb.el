@@ -162,6 +162,30 @@
 
 (defvar ede-compdb-compiler-cache nil "Cached include paths for each compiler detected.")
 
+(defun ede-compdb-parse-clang-system-includes ()
+  "Parse the current buffer for clang system includes."
+  
+  (while (not (or (eobp) (looking-at "^#include \\(\"...\"\\|<...>\\) search starts here:")))
+    (forward-line))
+      
+  (let (result)
+    (while (not (or (eobp) (looking-at "^End of search list.")))
+      (when (looking-at "^ +\\(.+?\\)\\( (framework directory)\\)?$")
+        ;; For now ignore framework directories
+        (unless (match-string 2)
+          (setq result (cons (file-truename (match-string 1)) result))))
+      (forward-line))
+
+    (reverse result)))
+
+(defun ede-compdb-clang-get-system-includes (clang)
+  "Return a list of system include paths by querying the compiler CLANG."
+  ;; The equivalent function in semantic/bovine/clang is obsolete, this version should work with modern clangs...
+  (with-temp-buffer
+    (call-process clang nil t nil "-x" "c++" "-Xclang" "-v" "-c" "-")
+    (goto-char (point-min))
+    (ede-compdb-parse-clang-system-includes)))
+
 (defun ede-compdb-compiler-include-path (comp)
   "Look up include paths for COMP and add to INCLUDE-PATHS."
   (let ((path (cdr (assoc comp ede-compdb-compiler-cache))))
@@ -170,6 +194,9 @@
       ;; FIXME: this is pretty simplistic but it will do for now...
       (setq path (cdr (assoc '--with-gxx-include-dir
                               (semantic-gcc-fields (semantic-gcc-query comp "-v")))))
+      ;; Try clang if GCC fails
+      (unless path
+        (setq path (ede-compdb-clang-get-system-includes comp)))
       (add-to-list 'ede-compdb-compiler-cache (cons comp path)))
     path))
 
@@ -219,9 +246,10 @@ from the command line (which is most of them!)"
           (setq seenopt t)
           )))
     
-    (let ((cpath (ede-compdb-compiler-include-path (oref this compiler))))
-      (when cpath
-        (object-add-to-list this :include-path cpath t)))
+    (oset this include-path
+          (nconc
+           (oref this include-path)
+           (ede-compdb-compiler-include-path (oref this compiler))))
     ))
 
 
