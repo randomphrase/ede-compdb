@@ -158,6 +158,11 @@
   "Represents a target, namely something that can be built"
   )
 
+;;; Hooks:
+
+(defvar ede-compdb-project-rescan-hook nil
+  "Hook called by `ede-compdb' for each buffer which is affected when the compilation database is reloaded.")
+
 ;;; Compiler support:
 
 (defvar ede-compdb-compiler-cache nil "Cached include paths for each compiler detected.")
@@ -518,14 +523,18 @@ an d pick one that is present in the compdb hashtable."
 
     ;; Update all remaining targets
     (dolist (T (oref this targets))
-
-      ;; Update compilation
+      
       (with-current-buffer (get-file-buffer (expand-file-name (oref T :path) oldprojdir))
-        (oset T :compilation (compdb-entry-for-buffer this)))
 
-      (when (and (not (equal oldprojdir newprojdir)) (slot-boundp T 'path))
-        (oset T :path (ede-convert-path this (expand-file-name (oref T path) oldprojdir))))
-      )
+        ;; Update path to target
+        (when (and (not (equal oldprojdir newprojdir)) (slot-boundp T 'path))
+          (oset T :path (ede-convert-path this (expand-file-name (oref T path) oldprojdir))))
+
+        ;; Update compilation
+        (oset T :compilation (compdb-entry-for-buffer this))
+
+        (run-hooks 'ede-compdb-project-rescan-hook)))
+    
     ))
 
 (defmethod project-rescan-if-needed ((this ede-compdb-project))

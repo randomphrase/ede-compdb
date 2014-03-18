@@ -258,7 +258,15 @@ End of search list.
 
              ;; Force a rescan with all these buffers open, just to make sure it works
              (with-current-buffer (car testbufs)
-               (ede-rescan-toplevel))
+               (let (hookrun)
+
+                 ;; Add a local hook so it will go away when we close the buffer
+                 (add-hook 'ede-compdb-project-rescan-hook (lambda () (setq hookrun t)) nil t)
+
+                 (ede-rescan-toplevel)
+                 
+                 ;; Check that the rescan hook is run
+                 (should hookrun)))
 
              ;; All compilation entries should have been updated
              ;; FIXME: need ede-object for all buffers, including above
