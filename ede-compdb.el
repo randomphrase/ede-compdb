@@ -610,13 +610,13 @@ of `ede-compdb-target' or a string."
                         (if (ede-compdb-target-p target) (oref target name) target))))
          (default-directory (if entry (oref entry directory)
                               (current-configuration-directory this))))
-    (compilation-start cmd)
+    (compile cmd)
     ))
 
 (defmethod project-compile-project ((this ede-compdb-project))
   "Build the project THIS using :build-command"
   (let ((default-directory (current-configuration-directory this)))
-    (compilation-start (oref this build-command))
+    (compile (oref this build-command))
     ))
 
 (defmethod ede-menu-items-build ((_this ede-compdb-project) &optional _current)
