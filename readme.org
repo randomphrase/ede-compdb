@@ -7,7 +7,7 @@ EDE-compdb is a library that enables the Emacs Development Environment (EDE), wh
 Features:
 - Reads compilation database on-demand and provides include paths and preprocessor symbols to the Semantic parser
 - For GCC-compatible compilers, reads the internal include paths (no need to use ~semantic-gcc-setup~)
-- Most EDE commands supported, such as "C-c . c" to build the current target (source file)
+- Most EDE commands supported, such as @<kbd>C-c . c@</kbd> to build the current target (source file)
 - Autoloads based on the presence of ~compile_commands.json~ file, with no additional configuration typically required
 - Supports multiple build configurations (eg Debug, Release) and corresponding build directories
 - Supports [[http://www.illusori.co.uk/projects/emacs-flymake/][Flymake]], allowing source files to be checked on-the-fly with no additional setup required
