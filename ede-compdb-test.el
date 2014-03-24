@@ -29,13 +29,14 @@
 
 (require 'ede-compdb)
 (require 'ert)
+(require 'el-mock)
 
 (defvar ede-compdb-test-srcdir
   (file-name-as-directory 
    (expand-file-name "test" (when load-file-name (file-name-directory load-file-name)))))
 
 (defun temp-directory-fixture (body)
-  "Calls BODY with a temporary directory. This directory will be deleted on exit/error."
+  "Call BODY with a temporary directory.  This directory will be deleted on exit/error."
   (let ((builddir (make-temp-file "build-" t)))
     (unwind-protect
         (funcall body (file-name-as-directory builddir))
@@ -44,8 +45,8 @@
         (ede-flush-deleted-projects)))))
 
 (defun invoke-cmake (gencompdb srcdir builddir &rest args)
-  "Invokes cmake on the SRCDIR to build into BUILDDIR with
-ARGS. If GENCOMPDB is non-nill, a compilation database will be
+  "Invoke cmake on the SRCDIR to build into BUILDDIR with ARGS.
+If GENCOMPDB is non-nill, a compilation database will be
 generated"
   (erase-buffer)
   (let* ((default-directory builddir)
@@ -377,33 +378,34 @@ End of search list.
   (cmake-build-directory-fixture
    t
    (lambda (testdir builddir)
-     (let* ((proj (ede-add-project-to-global-list
-                   (ede-compdb-project "TESTPROJ"
-                                       :compdb-file (expand-file-name "compile_commands.json" builddir)
-                                       :file (expand-file-name "CMakeLists.txt" testdir))))
-            (maincpp (expand-file-name "main.cpp" testdir)))
+     (mocklet ((flymake-init-create-temp-buffer-copy => "dummyfile.cpp"))
+       (let* ((proj (ede-add-project-to-global-list
+                     (ede-compdb-project "TESTPROJ"
+                                         :compdb-file (expand-file-name "compile_commands.json" builddir)
+                                         :file (expand-file-name "CMakeLists.txt" testdir))))
+              (maincpp (expand-file-name "main.cpp" testdir)))
+         
+         (let ((buf (find-file-noselect maincpp)))
+           (unwind-protect
+               (with-current-buffer buf
+                 ;; Should have set up the current project and target
+                 (should (eq proj (ede-current-project)))
+                 (should (oref ede-object compilation))
 
-       (let ((buf (find-file-noselect maincpp)))
-         (unwind-protect
-             (with-current-buffer buf
-               ;; Should have set up the current project and target
-               (should (eq proj (ede-current-project)))
-               (should (oref ede-object compilation))
-
-               (let* ((ret (ede-compdb-flymake-init)))
-                 ;; Init function needs to return a list of (compiler, args, dir)
-                 (should (listp ret))
-                 (should (= 3 (length ret)))
-
-                 ;; Args should be processed correctly
-                 (should (cl-search '("-o" "/dev/null") (nth 1 ret) :test 'equal))
-                 (should (not (cl-find "-MT" (nth 1 ret) :test 'equal)))
-                 (should (not (cl-find maincpp (nth 1 ret) :test 'equal)))
-                 (should (not (cl-find "-c" (nth 1 ret) :test 'equal)))
-
-                 ;; Directory should be the build dir
-                 (should (file-equal-p builddir (nth 2 ret)))
-                 ))
+                 (let ((ret (ede-compdb-flymake-init)))
+                   ;; Init function needs to return a list of (compiler, args, dir)
+                   (should (listp ret))
+                   (should (= 3 (length ret)))
+                   
+                   ;; Args should be processed correctly
+                   (should (cl-search '("-o" "/dev/null") (nth 1 ret) :test 'equal))
+                   (should (not (cl-find "-MT" (nth 1 ret) :test 'equal)))
+                   (should (not (cl-find maincpp (nth 1 ret) :test 'equal)))
+                   (should (not (cl-find "-c" (nth 1 ret) :test 'equal)))
+                   
+                   ;; Directory should be the build dir
+                   (should (file-equal-p builddir (nth 2 ret)))
+                   )))
            (kill-buffer buf)
            ))
        ))))
