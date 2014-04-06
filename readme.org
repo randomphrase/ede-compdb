@@ -224,6 +224,8 @@ The [[https://github.com/mooz/auto-complete-c-headers][auto-complete-c-headers]]
 
 There is an ert test suite which uses a sample CMake project, with a temporary directory as a build directory. CMake, Ninja and a C++ compiler are required to run these tests successfully.
 
+To run the tests, you need to install [[http://cask.github.io][Cask]], and use =make test=.
+
 ** Current limitations/TODOs/Wishlist:
 
 - As stated above, if you use "Summarize includes current buffer" you will *NOT* see the system include path for the buffer. The reason is that the include path is set on the target, and not on the project. However, the summarize function only prints out the system include path for the project, and not the target. You can of course use ~(ede-system-include-path ede-object)~ to check the include path instead.

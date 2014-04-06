@@ -6,6 +6,10 @@
 (depends-on "json")
 
 (development
+ (source melpa)
+
+ (depends-on "f")
  (depends-on "ert")
  (depends-on "el-mock")
+ (depends-on "ert-runner")
  )

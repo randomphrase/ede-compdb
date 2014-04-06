@@ -390,11 +390,11 @@ current configuration directory is used if CONFIG not set."
   "Inserts the compilation database into the current buffer"
   (insert-file-contents compdb-path))
 
-(defun ff-find-other-file-if (test)
-  "Return the first 'other' file for the current buffer which satisfies TEST.
-Generation of other files uses the same
-rules and variables as defined for `ff-other-file-name', but does
-not stop at the first file found."
+(defun ff-other-file-list ()
+  "Return a list of the 'other' files for the current buffer.
+Generation of other files uses the same rules and variables as
+defined for `ff-other-file-name', but does not stop at the first
+file found."
   (require 'find-file)
 
   (let* ((dirs (ff-list-replace-env-vars
@@ -422,13 +422,16 @@ not stop at the first file found."
       ;; fact the ff-get-file-name function will only handle terminating '*'
       ;; characters. However, expanding wildcards here might lead to an
       ;; explosion of paths, so let's just not...
-      (dolist (D dirs)
-        (dolist (S suffixes)
-          (let ((candidate (concat (file-name-as-directory D) (concat basename S))))
-            (when (funcall test candidate)
-              (return candidate)
-              ))))
-      )))
+
+      (let (ret)
+        (dolist (D dirs)
+          (dolist (S suffixes)
+            ;; Collect in reverse order
+            (setq ret (cons (concat (file-name-as-directory D) (concat basename S)) ret))
+            ))
+
+        (nreverse ret)
+        ))))
 
 (defmethod compdb-entry-for-buffer ((this ede-compdb-project))
   "Returns an instance of ede-compdb-entry suitable for use with
@@ -440,8 +443,12 @@ an d pick one that is present in the compdb hashtable."
     (or
      ;; If the file is in the compilation database, use that
      (gethash fname (oref this compdb))
-     ;; If the 'other' files are in the compilation database, use the first match
-     (ff-find-other-file-if (lambda (T) (gethash (file-truename T) (oref this compdb))))
+     ;; If one the 'other' files are in the compilation database, use the first match
+     (let ((others (ff-other-file-list)) found)
+       (while (and others (not found))
+         (setq found (gethash (file-truename (car others)) (oref this compdb)))
+         (setq others (cdr others)))
+       found)
      ;; Otherwise search the compilation database for the 'best' match. In this
      ;; case the best match is the one with the longest matching prefix.
      (let (bestmatch bestmatchlen)

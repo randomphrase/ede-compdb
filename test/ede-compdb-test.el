@@ -1,4 +1,4 @@
-;; ede-compdb-test.el --- Tests for ede-compdb.el  -*- lexical-binding: t; -*-
+;; ede-compdb-test.el --- ede-compdb unit tests  -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2013-2014 Alastair Rankine
 
@@ -27,88 +27,24 @@
 
 ;;; Code:
 
-(require 'ede-compdb)
+;;(require 'ede-compdb)
 (require 'ert)
 (require 'el-mock)
-
-(defvar ede-compdb-test-srcdir
-  (file-name-as-directory 
-   (expand-file-name "test" (when load-file-name (file-name-directory load-file-name)))))
-
-(defun temp-directory-fixture (body)
-  "Call BODY with a temporary directory.  This directory will be deleted on exit/error."
-  (let ((builddir (make-temp-file "build-" t)))
-    (unwind-protect
-        (funcall body (file-name-as-directory builddir))
-      (progn
-        (delete-directory builddir t)
-        (ede-flush-deleted-projects)))))
-
-(defun invoke-cmake (gencompdb srcdir builddir &rest args)
-  "Invoke cmake on the SRCDIR to build into BUILDDIR with ARGS.
-If GENCOMPDB is non-nill, a compilation database will be
-generated"
-  (erase-buffer)
-  (let* ((default-directory builddir)
-         (ret (apply 'call-process (append '("cmake" nil t t)
-                                           (when gencompdb (list "-DCMAKE_EXPORT_COMPILE_COMMANDS=1"))
-                                           args (list srcdir)))))
-    (when (> 0 ret)
-      (error "Error running CMake: error %d" ret)))
-  )
-  
-(defun cmake-build-directory-fixture (gencompdb body &rest args)
-  "Runs cmake in a temporary build directory"
-  (temp-directory-fixture
-   (lambda (builddir)
-     (should (file-exists-p builddir))
-     (with-current-buffer (get-buffer-create "*ede-compdb-test*")
-       (apply 'invoke-cmake (append (list gencompdb ede-compdb-test-srcdir builddir) args))
-       (funcall body ede-compdb-test-srcdir builddir)
-       ))
-   ))
-
-(defun sleep-until-compilation-done ()
-  (let* ((comp-buf (get-buffer "*compilation*"))
-         (comp-proc (get-buffer-process comp-buf)))
-    (while comp-proc
-      (sleep-for 1)
-      (setq comp-proc (get-buffer-process comp-buf)))))
-
-(defun insource-build-fixture (gencompdb body &rest args)
-  "Sets up a source tree in a temporary directory for an
-in-source build"
-  (temp-directory-fixture
-   (lambda (builddir)
-     ;; To keep the source directory clean, we'll copy the test project into the temp directory
-     (copy-directory ede-compdb-test-srcdir builddir)
-     (let ((srcdir (file-name-as-directory (concat builddir "test"))))
-       (apply 'invoke-cmake (append (list gencompdb "." srcdir) args))
-       (funcall body srcdir)
-       ))
-   ))
-
-
+(require 'semantic)
 
 (ert-deftest parse-command-line ()
   "Tests parsing of command lines"
-  (let ((savedcache ede-compdb-compiler-cache)
-        (f nil))
-    (unwind-protect
-        (progn
-          ;; Prepopulate the compiler cache so that we know what to expect in it
-          (setq ede-compdb-compiler-cache '(("g++" "/opt/gcc/include")))
-          (setq f (compdb-entry "foo.cpp" :command-line
-                                "g++ -Dfoo -Dbar=baz -Uqux -isystem /opt/quxx/include -I/opt/local/include -Iincludes -include bar.hpp main.cpp"))
+  (mocklet ((ede-compdb-compiler-include-path => '("/opt/gcc/include")))
+           (let ((f (compdb-entry "foo.cpp" :command-line
+                                  "g++ -Dfoo -Dbar=baz -Uqux -isystem /opt/quxx/include -I/opt/local/include -Iincludes -include bar.hpp main.cpp")))
 
-          (parse-command-line-if-needed f)
-          (should (equal "g++" (oref f compiler)))
-          (should (equal '(("foo") ("bar" . "baz")) (oref f defines)))
-          (should (equal '("qux") (oref f undefines)))
-          (should (equal '("/opt/quxx/include" "/opt/local/include" "includes" "/opt/gcc/include") (oref f include-path)))
-          (should (equal '("bar.hpp") (oref f includes)))
-          )
-      (setq ede-compdb-compiler-cache savedcache))))
+             (parse-command-line-if-needed f)
+             (should (equal "g++" (oref f compiler)))
+             (should (equal '(("foo") ("bar" . "baz")) (oref f defines)))
+             (should (equal '("qux") (oref f undefines)))
+             (should (equal '("/opt/quxx/include" "/opt/local/include" "includes" "/opt/gcc/include") (oref f include-path)))
+             (should (equal '("bar.hpp") (oref f includes)))
+             )))
 
 (ert-deftest empty-build-dir ()
   "Tests that we can still open files when the build directory can't be located, or is empty"
@@ -122,7 +58,7 @@ in-source build"
             (maincpp (expand-file-name "main.cpp" srcdir)))
 
        (should (eq proj (ede-directory-get-open-project srcdir)))
-
+       
        (let ((buf (find-file-noselect maincpp)))
          (unwind-protect
              (with-current-buffer buf
@@ -187,13 +123,14 @@ End of search list.
                (setq testbufs (cons buf testbufs))
                (with-current-buffer buf
                  ;; Should have set up the current project and target
+                 (should ede-object)
                  (should (eq proj (ede-current-project)))
                  (should (oref ede-object compilation))
                  
                  ;; Include path should include certain dirs:
                  (let ((P (ede-system-include-path ede-object)))
                    (should (member (expand-file-name "world" testdir) P))
-                   (should (member (file-truename builddir) P))
+                   (should (member builddir P))
                    )
                  
                  ;; Should have been parsed
