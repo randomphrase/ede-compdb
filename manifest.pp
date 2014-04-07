@@ -2,6 +2,8 @@
 #   ensure => installed
 # }
 
+include apt
+
 package { 'cmake':
   ensure => installed
 }
