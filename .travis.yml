@@ -7,11 +7,12 @@ env:
 # stuck because of lacking output.  We used to use --debug, but that is just too
 # much information
 before_install:
-  # Bootstrap Puppet, and install our Puppet modules
+  # Bootstrap Puppet, and install our Puppet modules.
+  - sudo apt-get update
   - sudo apt-get install puppet
-  - sudo FACTER_travis=true puppet install --verbose gini-archive puppetlabs-apt
+  - sudo FACTER_travis=true puppet apply --verbose ./puppet/manifests/bootstrap.pp
   # Bootstrap test environment
-  - sudo FACTER_travis=true puppet apply --verbose manifest.pp
+  - sudo FACTER_travis=true puppet apply --verbose ./puppet/manifests/testenv.pp
 install:
   # Install our packages
   - make EMACS=$EMACS deps
