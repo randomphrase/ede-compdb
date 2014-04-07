@@ -8,6 +8,7 @@ env:
 # much information
 before_install:
   # Bootstrap Puppet, and install our Puppet modules
+  - sudo apt-get install puppet
   - sudo FACTER_travis=true puppet install --verbose gini-archive puppetlabs-apt
   # Bootstrap test environment
   - sudo FACTER_travis=true puppet apply --verbose manifest.pp
