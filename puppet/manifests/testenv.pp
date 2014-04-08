@@ -1,16 +1,24 @@
-# package { 'ninja-build':
-#   ensure => installed
-# }
+include apt
+
+# Update Apt before installing packages
+Class['apt::update'] -> Package <| |>
+
+# Actual stuff we need..
+
+apt::ppa { ['ppa:cassou/emacs', 'ppa:arankine/ninja-build']: }
 
 package { 'cmake':
-  ensure => installed
+  ensure => latest
 }
-
-apt::ppa { 'ppa:cassou/emacs': }
 
 package { ['emacs24-common', 'emacs24-bin-common', 'emacs24-nox']:
   ensure  => latest,
   require => Apt::Ppa['ppa:cassou/emacs']
+}
+
+package { 'ninja-build':
+  ensure => latest,
+  require => Apt::Ppa['ppa:arankine/ninja-build']
 }
 
 $cask_version = '0.6.0'
