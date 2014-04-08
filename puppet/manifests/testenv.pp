@@ -3,6 +3,16 @@ include apt
 # Update Apt before installing packages
 Class['apt::update'] -> Package <| |>
 
+# Drop apt::update from Package default, to avoid a cyclic dependency on
+# apt::update, because apt::update in turn will depend on this package,
+# because it has the tools to add PPAs
+package { 'python-software-properties':
+  ensure  => latest,
+  require => [],
+  before  => Class['apt'],
+}
+
+
 # Actual stuff we need..
 
 apt::ppa { ['ppa:cassou/emacs', 'ppa:arankine/ninja-build']: }
