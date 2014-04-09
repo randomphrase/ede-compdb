@@ -1,13 +1,15 @@
 include apt
 
 # Update Apt before installing packages
-Class['apt::update'] -> Package <| |>
+Package {
+  require => Class['apt::update']
+}
 
-# Drop apt::update from Package default, to avoid a cyclic dependency on
-# apt::update, because apt::update in turn will depend on this package,
-# because it has the tools to add PPAs
 package { 'python-software-properties':
   ensure  => latest,
+  # Drop apt::update from Package default, to avoid a cyclic dependency on
+  # apt::update, because apt::update in turn will depend on this package,
+  # because it has the tools to add PPAs
   require => [],
   before  => Class['apt'],
 }
@@ -17,7 +19,7 @@ package { 'python-software-properties':
 
 apt::ppa { ['ppa:cassou/emacs', 'ppa:arankine/ninja-build']: }
 
-package { 'cmake':
+package { ['cmake', 'build-essential']:
   ensure => latest
 }
 

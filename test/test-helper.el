@@ -44,6 +44,11 @@
 (semantic-mode t)
 (global-ede-mode t)
 
+;; Inhibit the "Create directory for SemanticDB?" question
+;; TOOD: Is this a bug in semantic?
+(when noninteractive
+  (remove-hook 'kill-emacs-hook 'semanticdb-kill-emacs-hook))
+
 ;; We test with .ipp files - map to c++ mode so they can be parsed correctly
 (add-to-list 'auto-mode-alist '("\\.ipp$" . c++-mode))
 
