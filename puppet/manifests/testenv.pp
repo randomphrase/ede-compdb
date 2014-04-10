@@ -17,9 +17,9 @@ package { 'python-software-properties':
 
 # Actual stuff we need..
 
-apt::ppa { ['ppa:cassou/emacs', 'ppa:arankine/ninja-build']: }
+apt::ppa { ['ppa:cassou/emacs', 'ppa:arankine/backports', 'ppa:kalakris/cmake']: }
 
-package { ['cmake', 'build-essential']:
+package { ['build-essential']:
   ensure => latest
 }
 
@@ -30,7 +30,12 @@ package { ['emacs24-common', 'emacs24-bin-common', 'emacs24-nox']:
 
 package { 'ninja-build':
   ensure => latest,
-  require => Apt::Ppa['ppa:arankine/ninja-build']
+  require => Apt::Ppa['ppa:arankine/backports']
+}
+
+package { 'cmake':
+  ensure => latest,
+  require => Apt::Ppa['ppa:kalakris/cmake']
 }
 
 $cask_version = '0.6.0'

@@ -15,7 +15,7 @@ before_install:
   - sudo FACTER_travis=true puppet apply --verbose ./puppet/manifests/testenv.pp
 install:
   # Install our packages
-  - make EMACS=$EMACS
+  - make EMACS=$EMACS deps
 script:
   # Run unit tests.
   - make EMACS=$EMACS test
