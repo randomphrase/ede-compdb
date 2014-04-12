@@ -17,6 +17,8 @@ Features:
 
 License: GPLv2
 
+[[https://travis-ci.org/randomphrase/ede-compdb][https://travis-ci.org/randomphrase/ede-compdb.svg?branch=master]]
+
 ** Quickstart
 
 The easiest method to install EDE-compdb is via the [[http://melpa.milkbox.net/][MELPA package repository]]. No further configuration is needed with this method.

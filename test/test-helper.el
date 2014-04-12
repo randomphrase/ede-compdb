@@ -30,6 +30,7 @@
 (require 'ede)
 (require 'semantic)
 (require 'f)
+(require 'cl-lib)
 
 (defvar ede-compdb-test-path (f-dirname (f-this-file)))
 (defvar ede-compdb-path (f-parent ede-compdb-test-path))
@@ -38,7 +39,10 @@
 
 ;; Workaround needed because ede-flush-deleted-projects is not in Emacs 24.3
 (unless (fboundp 'ede-flush-deleted-projects)
-  (defun ede-flush-deleted-projects ()))
+  (defun ede-flush-deleted-projects ()
+    (cl-delete-if (lambda (P) (not (file-exists-p (oref P :file))))
+                  ede-projects)
+    ))
 
 ;; Need to have EDE and semantic automatically enabled for new buffers
 (semantic-mode t)
