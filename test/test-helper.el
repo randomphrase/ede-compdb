@@ -60,13 +60,13 @@
   (file-name-as-directory 
    (expand-file-name "proj" (when load-file-name (file-name-directory load-file-name)))))
 
-(defun temp-directory-fixture (body)
-  "Call BODY with a temporary directory.  This directory will be deleted on exit/error."
-  (let ((builddir (make-temp-file "build-" t)))
+(defmacro with-temp-directory (dir &rest body)
+  "Create DIR as a temporary directory and invoke BODY.  The temporary directory will be deleted on exit/error."
+  `(let ((,dir (file-name-as-directory (make-temp-file "build-" t))))
     (unwind-protect
-        (funcall body (file-name-as-directory builddir))
+        ,@body
       (progn
-        (delete-directory builddir t)
+        (delete-directory ,dir t)
         (ede-flush-deleted-projects)))))
 
 (defun invoke-cmake (gencompdb srcdir builddir &rest args)
@@ -84,14 +84,13 @@ generated"
   
 (defun cmake-build-directory-fixture (gencompdb body &rest args)
   "Runs cmake in a temporary build directory"
-  (temp-directory-fixture
-   (lambda (builddir)
-     (should (file-exists-p builddir))
-     (with-current-buffer (get-buffer-create "*ede-compdb-test*")
-       (apply 'invoke-cmake (append (list gencompdb ede-compdb-test-srcdir builddir) args))
-       (funcall body ede-compdb-test-srcdir builddir)
-       ))
-   ))
+  (with-temp-directory
+   builddir
+   (should (file-exists-p builddir))
+   (with-current-buffer (get-buffer-create "*ede-compdb-test*")
+     (apply 'invoke-cmake (append (list gencompdb ede-compdb-test-srcdir builddir) args))
+     (funcall body ede-compdb-test-srcdir builddir)
+     )))
 
 (defun sleep-until-compilation-done ()
   (let* ((comp-buf (get-buffer "*compilation*"))
@@ -103,14 +102,13 @@ generated"
 (defun insource-build-fixture (gencompdb body &rest args)
   "Sets up a source tree in a temporary directory for an
 in-source build"
-  (temp-directory-fixture
-   (lambda (builddir)
-     ;; To keep the source directory clean, we'll copy the test project into the temp directory
-     (copy-directory ede-compdb-test-srcdir builddir)
-     (let ((srcdir (file-name-as-directory (concat builddir "proj"))))
-       (apply 'invoke-cmake (append (list gencompdb "." srcdir) args))
-       (funcall body srcdir)
-       ))
-   ))
+  (with-temp-directory
+   builddir
+   ;; To keep the source directory clean, we'll copy the test project into the temp directory
+   (copy-directory ede-compdb-test-srcdir builddir)
+   (let ((srcdir (file-name-as-directory (concat builddir "proj"))))
+     (apply 'invoke-cmake (append (list gencompdb "." srcdir) args))
+     (funcall body srcdir)
+     )))
 
 ;;; test-helper.el ends here

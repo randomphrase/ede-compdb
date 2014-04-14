@@ -48,29 +48,29 @@
 
 (ert-deftest empty-build-dir ()
   "Tests that we can still open files when the build directory can't be located, or is empty"
-  (temp-directory-fixture
-   (lambda (tmpdir)
-     (let* ((srcdir ede-compdb-test-srcdir)
-            (proj (ede-add-project-to-global-list
-                  (ede-compdb-project "TESTPROJ"
-                                      :compdb-file (expand-file-name "compile_commands.json" tmpdir)
-                                      :file (expand-file-name "CMakeLists.txt" srcdir))))
-            (maincpp (expand-file-name "main.cpp" srcdir)))
-
-       (should (eq proj (ede-directory-get-open-project srcdir)))
-       
-       (let ((buf (find-file-noselect maincpp)))
-         (unwind-protect
-             (with-current-buffer buf
-               ;; Should have set up the current project and target
-               (should (eq proj (ede-current-project)))
-               (should (not (oref ede-object compilation)))
-
-               ;; Should have been parsed
-               (should (semantic-active-p))
-               )
+  (with-temp-directory
+   tmpdir
+   (let* ((srcdir ede-compdb-test-srcdir)
+          (proj (ede-add-project-to-global-list
+                 (ede-compdb-project "TESTPROJ"
+                                     :compdb-file (expand-file-name "compile_commands.json" tmpdir)
+                                     :file (expand-file-name "CMakeLists.txt" srcdir))))
+          (maincpp (expand-file-name "main.cpp" srcdir)))
+     
+     (should (eq proj (ede-directory-get-open-project srcdir)))
+     
+     (let ((buf (find-file-noselect maincpp)))
+       (unwind-protect
+           (with-current-buffer buf
+             ;; Should have set up the current project and target
+             (should (eq proj (ede-current-project)))
+             (should (not (oref ede-object compilation)))
+             
+             ;; Should have been parsed
+             (should (semantic-active-p))
+             )
          (kill-buffer buf)))
-       ))))
+     )))
 
 (ert-deftest parse-clang-system-includes ()
   "Tests discovery of clang system includes"
@@ -254,44 +254,44 @@ End of search list.
 
 (ert-deftest multiple-configuration-directories ()
   "Tests that we can track multiple configuration directories. We create two projects, Debug and Release, and check that they can both build"
-  (temp-directory-fixture
-   (lambda (builddir)
-     (let ((dbgdir (file-name-as-directory (concat builddir "debug")))
-           (reldir (file-name-as-directory (concat builddir "release")))
-           (custdir (file-name-as-directory (concat builddir "custom"))))
-       (make-directory dbgdir)
-       (make-directory reldir)
-       (make-directory custdir)
+  (with-temp-directory
+   builddir
+   (let ((dbgdir (file-name-as-directory (concat builddir "debug")))
+         (reldir (file-name-as-directory (concat builddir "release")))
+         (custdir (file-name-as-directory (concat builddir "custom"))))
+     (make-directory dbgdir)
+     (make-directory reldir)
+     (make-directory custdir)
 
-       (with-temp-buffer
-         (invoke-cmake t ede-compdb-test-srcdir dbgdir "-DCMAKE_BUILD_TYPE=Debug")
-         (invoke-cmake t ede-compdb-test-srcdir reldir "-DCMAKE_BUILD_TYPE=Release")
-         (invoke-cmake t ede-compdb-test-srcdir custdir "-DCMAKE_BUILD_TYPE=Release")
+     (with-temp-buffer
+       (invoke-cmake t ede-compdb-test-srcdir dbgdir "-DCMAKE_BUILD_TYPE=Debug")
+       (invoke-cmake t ede-compdb-test-srcdir reldir "-DCMAKE_BUILD_TYPE=Release")
+       (invoke-cmake t ede-compdb-test-srcdir custdir "-DCMAKE_BUILD_TYPE=Release")
 
-         (let ((proj (ede-compdb-project
-                      "TESTPROJ"
-                      :compdb-file "compile_commands.json"
-                      :file (expand-file-name "CMakeLists.txt" ede-compdb-test-srcdir)
-                      :configuration-directories (list dbgdir reldir))))
+       (let ((proj (ede-compdb-project
+                    "TESTPROJ"
+                    :compdb-file "compile_commands.json"
+                    :file (expand-file-name "CMakeLists.txt" ede-compdb-test-srcdir)
+                    :configuration-directories (list dbgdir reldir))))
 
-           (should (file-exists-p dbgdir))
-           (project-compile-project proj)
-           (sleep-until-compilation-done)
-           (should (file-executable-p (concat dbgdir "hello")))
-           
-           (oset proj configuration-default "release")
-           (should (file-directory-p reldir))
-           (project-compile-project proj)
-           (sleep-until-compilation-done)
-           (should (file-executable-p (concat reldir "hello")))
+         (should (file-exists-p dbgdir))
+         (project-compile-project proj)
+         (sleep-until-compilation-done)
+         (should (file-executable-p (concat dbgdir "hello")))
          
-           ;; Set the current configuration directory to custdir
-           (ede-compdb-set-configuration-directory custdir proj)
-           (project-compile-project proj)
-           (sleep-until-compilation-done)
-           (should (file-executable-p (concat custdir "hello")))
+         (oset proj configuration-default "release")
+         (should (file-directory-p reldir))
+         (project-compile-project proj)
+         (sleep-until-compilation-done)
+         (should (file-executable-p (concat reldir "hello")))
+         
+         ;; Set the current configuration directory to custdir
+         (ede-compdb-set-configuration-directory custdir proj)
+         (project-compile-project proj)
+         (sleep-until-compilation-done)
+         (should (file-executable-p (concat custdir "hello")))
 
-           ))))))
+         )))))
 
 (ert-deftest autoload-project ()
   "Tests that we can autoload a project depending on the presence of a compilation database file"
