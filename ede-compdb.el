@@ -66,6 +66,7 @@
 (eval-after-load "ede/auto"
   '(ede-add-project-autoload
     (ede-project-autoload "compdb"
+                          :name "Compilation DB"
                           :file 'ede-compdb
                           :proj-file "compile_commands.json"
                           :load-type 'ede-compdb-load-project
@@ -75,6 +76,7 @@
 (eval-after-load "ede/auto"
   '(ede-add-project-autoload
     (ede-project-autoload "ninja"
+                          :name "Ninja"
                           :file 'ede-compdb
                           :proj-file "build.ninja"
                           :load-type 'ede-ninja-load-project
