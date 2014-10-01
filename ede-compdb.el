@@ -147,6 +147,9 @@
    (phony-targets
     :type list :initform '()
     :documentation "Phony targets which ninja can build")
+   (build-rules
+    :type list :initarg :build-rules :initform '("CXX_COMPILER" "C_COMPILER")
+    :documentation "Ninja build rules for compiler commands.")
    )
   "Variant of ede-compdb-project, extended to take advantage of the ninja build tool."
 )
@@ -671,13 +674,13 @@ of `ede-compdb-target' or a string."
         (progress-reporter-done progress-reporter))
       )))
 
-(defmethod insert-compdb ((_this ede-ninja-project) compdb-path)
+(defmethod insert-compdb ((this ede-ninja-project) compdb-path)
   "Use ninja's compdb tool to insert the compilation database
 into the current buffer. COMPDB-PATH represents the current path
 to :compdb-file"
   (message "Building compilation database...")
   (let ((default-directory (file-name-directory compdb-path)))
-    (call-process "ninja" nil t nil "-t" "compdb" "CXX_COMPILER" "C_COMPILER")))
+    (apply 'call-process (append (list "ninja" nil t nil "-t" "compdb") (oref this :build-rules)))))
 
 (defmethod project-interactive-select-target ((this ede-ninja-project) prompt)
   "Interactively query for a target. Argument PROMPT is the prompt to use."
