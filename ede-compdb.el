@@ -196,20 +196,22 @@
     (goto-char (point-min))
     (ede-compdb-parse-clang-system-includes)))
 
-(defun ede-compdb-compiler-include-path (comp)
-  "Look up include paths for COMP and add to INCLUDE-PATHS."
+(defun ede-compdb-compiler-include-path (comp dir)
+  "Look up include paths for COMP in directory DIR, and add to INCLUDE-PATHS."
   (let ((path (cdr (assoc comp ede-compdb-compiler-cache))))
     (unless path
       (require 'semantic/bovine/gcc)
-      ;; FIXME: this is pretty simplistic but it will do for now...
-      (let ((dir (cdr (assoc '--with-gxx-include-dir
-                             (semantic-gcc-fields (semantic-gcc-query comp "-v"))))))
-        (when dir
-          (setq path (list dir))))
-      ;; Try clang if GCC fails
-      (unless path
-        (setq path (ede-compdb-clang-get-system-includes comp)))
-      (add-to-list 'ede-compdb-compiler-cache (cons comp path)))
+      (let ((default-directory dir))
+        ;; FIXME: this is pretty simplistic but it will do for now...
+        (let ((d (cdr (assoc '--with-gxx-include-dir
+                             (semantic-gcc-fields
+                              (shell-command-to-string (concat comp "-v")))))))
+          (when d
+            (setq path (list d))))))
+    ;; Try clang if GCC fails
+    (unless path
+      (setq path (ede-compdb-clang-get-system-includes comp)))
+    (add-to-list 'ede-compdb-compiler-cache (cons comp path))
     path))
 
 
@@ -256,30 +258,31 @@ from the command line (which is most of them!)"
          ((not seenopt)
           (oset this compiler (if (slot-boundp this :compiler) (concat (oref this compiler) " " argi) argi)))
          )
-    
-    (oset this include-path
-          (nconc
-           (oref this include-path)
-           (ede-compdb-compiler-include-path (oref this compiler))))
-    ))
+        ))))
 
+(defmethod ede-system-include-path ((this compdb-entry) &optional excludecompiler)
+  "Get the system include path used by THIS compdb entry.
+If EXCLUDECOMPILER is t, we ignore compiler include paths"
+  (append
+   (mapcar
+    (lambda (I)
+      (expand-file-name I (oref this directory)))
+        (oref this include-path))
+       (list (oref this directory))
+       (unless excludecompiler
+         (ede-compdb-compiler-include-path (oref this compiler) (oref this directory)))
+       ))
 
 ;;; ede-compdb-target methods:
 
-(defmethod ede-system-include-path ((this ede-compdb-target))
-  "Get the system include path used by project THIS."
+(defmethod ede-system-include-path ((this ede-compdb-target) &optional excludecompiler)
+  "Get the system include path used by project THIS target.
+If EXCLUDECOMPILER is t, we ignore compiler include paths"
   (project-rescan-if-needed (oref this project))
   (let ((comp (oref this compilation)))
     (when comp
       (parse-command-line-if-needed comp)
-      (append
-       (mapcar
-        (lambda (I)
-          (expand-file-name I (oref comp directory)))
-        (oref comp include-path))
-       (list (oref comp directory))
-       ))
-    ))
+      (ede-system-include-path comp excludecompiler))))
 
 (defmethod ede-preprocessor-map ((this ede-compdb-target))
   "Get the preprocessor map for target THIS."

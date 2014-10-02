@@ -34,17 +34,16 @@
 
 (ert-deftest parse-command-line ()
   "Tests parsing of command lines"
-  (mocklet ((ede-compdb-compiler-include-path => '("/opt/gcc/include")))
-           (let ((f (compdb-entry "foo.cpp" :command-line
-                                  "g++ -Dfoo -Dbar=baz -Uqux -isystem /opt/quxx/include -I/opt/local/include -Iincludes -include bar.hpp main.cpp")))
+  (let ((e (compdb-entry "foo.cpp" :directory "." :command-line
+                         "g++ -Dfoo -Dbar=baz -Uqux -isystem /opt/quxx/include -I/opt/local/include -Iincludes -include bar.hpp main.cpp")))
+    (parse-command-line-if-needed e)
+    (should (equal "g++" (oref e compiler)))
+    (should (equal '(("foo") ("bar" . "baz")) (oref e defines)))
+    (should (equal '("qux") (oref e undefines)))
+    (should (equal '("/opt/quxx/include" "/opt/local/include" "includes") (oref e include-path)))
+    (should (equal '("bar.hpp") (oref e includes)))
+    ))
 
-             (parse-command-line-if-needed f)
-             (should (equal "g++" (oref f compiler)))
-             (should (equal '(("foo") ("bar" . "baz")) (oref f defines)))
-             (should (equal '("qux") (oref f undefines)))
-             (should (equal '("/opt/quxx/include" "/opt/local/include" "includes" "/opt/gcc/include") (oref f include-path)))
-             (should (equal '("bar.hpp") (oref f includes)))
-             )))
 
 (ert-deftest empty-build-dir ()
   "Tests that we can still open files when the build directory can't be located, or is empty"
