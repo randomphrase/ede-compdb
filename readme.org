@@ -7,7 +7,7 @@ EDE-compdb is a library that enables the Emacs Development Environment (EDE), wh
 Features:
 - Reads compilation database on-demand and provides include paths and preprocessor symbols to the Semantic parser
 - For GCC-compatible compilers, reads the internal include paths (no need to use ~semantic-gcc-setup~)
-- Most EDE commands supported, such as @<kbd>C-c . c@</kbd> to build the current target (source file)
+- Most EDE commands supported, such as @@html:<kbd>@@C-c . c@@html:</kbd>@@ to build the current target (source file)
 - Autoloads based on the presence of ~compile_commands.json~ file, with no additional configuration typically required
 - Supports multiple build configurations (eg Debug, Release) and corresponding build directories
 - Supports [[http://www.illusori.co.uk/projects/emacs-flymake/][Flymake]] and [[https://github.com/flycheck/flycheck][Flycheck]], allowing source files to be checked on-the-fly with no additional setup required
@@ -71,7 +71,7 @@ In EDE terminology, each of these different types of builds is a project configu
 
 Multiple configurations and associated directories can be specified when an EDE-compdb project is created, using the =:configurations= and =:configuration-directories= properites. The =:configuration-default= property can be used to specify the current configuration, but if not present the first one in the list of configurations will be chosen.
 
-Once the project is created, you can switch to a different configuration using the =ede-project-configurations-set= function, bound to @<kbd>C-c . b@</kbd> by default. You can also change directory for the current configuration by using =ede-compdb-set-configuration-directory=, which is bound to @<kbd>C-c . B@</kdb> by default.
+Once the project is created, you can switch to a different configuration using the =ede-project-configurations-set= function, bound to @@html:<kbd>@@C-c . b@@html:</kbd>@@ by default. You can also change directory for the current configuration by using =ede-compdb-set-configuration-directory=, which is bound to @@html:<kbd>@@C-c . B@@html:</kbd>@@ by default.
 
 *** Simple Example
 
@@ -140,11 +140,11 @@ Furthermore we're using the EDE autoload mechanism to automatically create and l
 
 ** Building
 
-The current buffer can be compiled using the =ede-compile-target= function, which is bound to @<kbd>C-c . c@</kbd> by default.
+The current buffer can be compiled using the =ede-compile-target= function, which is bound to @@html:<kbd>@@C-c . c@@html:</kbd>@@ by default.
 
-When creating an EDE-compdb project, the ~:build-command~ attribute can be set to the command to be used to build the entire project. This is invoked with =ede-compile-project=, which is bound to @<kdb>C-c . C@</kbd> by default. This command is run from the current configuration directory.
+When creating an EDE-compdb project, the ~:build-command~ attribute can be set to the command to be used to build the entire project. This is invoked with =ede-compile-project=, which is bound to @@html:<kbd>@@C-c . C@@html:</kbd>@@ by default. This command is run from the current configuration directory.
 
-When =ede-ninja-project= is used, some additional features are supported. EDE-compdb supports automatically loading the list of top-level phony projects, like "all" and "test". These are often useful during development, and EDE-compdb makes these available for use via the =ede-compile-selected= command. This is bound to the "Build Other Target..." menu item and @<kbd>C-c . C-c@</kbd> by default. These phony targets are queried using ~ninja -t targets~ and cached per-project.
+When =ede-ninja-project= is used, some additional features are supported. EDE-compdb supports automatically loading the list of top-level phony projects, like "all" and "test". These are often useful during development, and EDE-compdb makes these available for use via the =ede-compile-selected= command. This is bound to the "Build Other Target..." menu item and @@html:<kbd>@@C-c . C-c@@html:</kbd>@@ by default. These phony targets are queried using ~ninja -t targets~ and cached per-project.
 
 ** Header files
 
@@ -184,7 +184,7 @@ Use of the compilation database is becoming more and more common, particularly f
 
 ** Rescanning the Compilation Database
 
-EDE-compdb will rescan the compilation database when the =ede-rescan-toplevel= function (bound to @<kbd>C-c . g@</kbd> by default) is invoked.
+EDE-compdb will rescan the compilation database when the =ede-rescan-toplevel= function (bound to @@html:<kbd>@@C-c . g@@html:</kbd>@@ by default) is invoked.
 
 Typically this should not be needed, because EDE-compdb detects when the compilation database has changed, and rescans it. Changes are detected by examining the size and modification date/time for the relevant file in the current build directory, which is the one specified by the =:compdb-file= slot. Generally this is set to ~compile_commands.json~ for regular EDE-compdb projects, and ~build.ninja~ for Ninja projects.
 
