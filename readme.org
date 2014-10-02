@@ -10,8 +10,8 @@ Features:
 - Most EDE commands supported, such as @<kbd>C-c . c@</kbd> to build the current target (source file)
 - Autoloads based on the presence of ~compile_commands.json~ file, with no additional configuration typically required
 - Supports multiple build configurations (eg Debug, Release) and corresponding build directories
-- Supports [[http://www.illusori.co.uk/projects/emacs-flymake/][Flymake]], allowing source files to be checked on-the-fly with no additional setup required
-- Easy integration with [[https://github.com/mooz/auto-complete-c-headers][auto-complete-c-headers]], for include file completion
+- Supports [[http://www.illusori.co.uk/projects/emacs-flymake/][Flymake]] and [[https://github.com/flycheck/flycheck][Flycheck]], allowing source files to be checked on-the-fly with no additional setup required
+- Easy integration with [[https://github.com/mooz/auto-complete-c-headers][auto-complete-c-headers]] and [[https://github.com/randomphrase/company-c-headers][company-c-headers]] for include file completion
 - (For Ninja projects only) Automatically generates the compilation database as required without needing to generate a ~compile_commands.json~ file
 - (For Ninja projects only) Loads and caches available phony build targets (eg "test") for convenient builds
 
@@ -213,13 +213,69 @@ The ~ede-compdb-flymake-init~ function is suitable for use with [[http://www.ill
 
 This will enable the use of flymake for all ~.cpp~ and ~.hpp~ files. Header files are supported, as long as a matching source file can be located, as described above.
 
+*** Flycheck Support
+
+The standard clang and gcc checkers can be automatically configured using EDE-compdb. Currently there is no init function but the following example should be sufficient for most needs.
+
+#+BEGIN_SRC emacs-lisp
+(require 'flycheck)
+
+;; TODO: load lazily...
+(require 'ede-compdb)
+
+(defun flycheck-compdb-setup ()
+  (when (and ede-object (oref ede-object compilation))
+    (let* ((comp (oref ede-object compilation))
+           (cmd (get-command-line comp)))
+      
+      ;; Configure flycheck clang checker.
+      ;; TODO: configure gcc checker also
+      (when (string-match "\\_<-std=\\((\\W+\\)\\_>" cmd)
+        (setq flycheck-clang-language-standard (match-string 1)))
+      (when (string-match "\\_<-stdlib=\\((\\W+\\)\\_>" cmd)
+        (setq flycheck-clang-standard-library (match-string 1)))
+      (when (string-match "\\_<-fms-extensions\\_>" cmd)
+        (setq flycheck-clang-ms-extensions t))
+      (when (string-match "\\_<-fno-exceptions\\_>" cmd)
+        (setq flycheck-clang-no-exceptions t))
+      (when (string-match "\\_<-fno-rtti\\_>" cmd)
+        (setq flycheck-clang-no-rtti t))
+      (when (string-match "\\_<-fblocks\\_>" cmd)
+        (setq flycheck-clang-blocks t))
+      (setq flycheck-clang-includes (oref comp includes))
+      (setq flycheck-clang-definitions (mapcar
+                                        ;; Convert ("SYM" . "DEF") into "SYM=DEF"
+                                        (lambda (def) (if (cdr def)
+                                                        (concat (car def) "=" (cdr def))
+                                                        (car def)))
+                                        (oref comp defines)))
+      (setq flycheck-clang-include-path (ede-system-include-path ede-object t))
+      )))
+
+(add-hook 'ede-compdb-project-rescan-hook #'flycheck-compdb-setup)
+(add-hook 'ede-minor-mode-hook #'flycheck-compdb-setup)
+
+(add-hook 'after-init-hook #'global-flycheck-mode)
+#+END_SRC
+
+Basically the idea is to populate the relevant flycheck variables from the current compilation database entry. The example above will work for the clang checker, and it can be trivially extended to work with the gcc and other checkers which rely on similar information.
+
 *** auto-complete-c-headers
 
-The [[https://github.com/mooz/auto-complete-c-headers][auto-complete-c-headers]] package provides auto-completion for C and C++ header files. To do this successfully, it needs to know the current include directories. EDE-compdb can be configured to provide this information, as in the following example:
+The [[https://github.com/mooz/auto-complete-c-headers][auto-complete-c-headers]] package provides auto-completion for C and C++ header files using the [[http://auto-complete.org/][auto-complete]] library. To do this successfully, it needs to know the current include directories. EDE-compdb can be configured to provide this information, as in the following example:
 
 #+BEGIN_SRC emacs-lisp
 (add-hook 'ede-minor-mode-hook (lambda ()
     (setq achead:get-include-directories-function 'ede-object-system-include-path)))
+#+END_SRC
+
+*** company-c-headers
+
+The [[https://github.com/randomphrase/company-c-headers][company-c-headers]] package provides auto-completion for C and C++ header files using the [[http://company-mode.github.io/][company-mode]] library. It can be configured similarly to the above package:
+
+#+BEGIN_SRC emacs-lisp
+(add-hook 'ede-minor-mode-hook (lambda ()
+    (setq company-c-headers-path-system 'ede-object-system-include-path)))
 #+END_SRC
 
 ** Development
