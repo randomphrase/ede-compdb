@@ -240,6 +240,8 @@ from the command line (which is most of them!)"
           (setq argval (match-string 2 argi))
           (setq defval (match-string 4 argi))
           (setq argi (match-string 1 argi)))
+        (when (char-equal ?- (string-to-char argi))
+          (setq seenopt t))
         (cond
          ((equal argi "-D")
           (object-add-to-list this :defines (cons (or argval (pop args)) defval) t))
@@ -254,9 +256,6 @@ from the command line (which is most of them!)"
          ((not seenopt)
           (oset this compiler (if (slot-boundp this :compiler) (concat (oref this compiler) " " argi) argi)))
          )
-        (when (char-equal ?- (string-to-char argi))
-          (setq seenopt t)
-          )))
     
     (oset this include-path
           (nconc
