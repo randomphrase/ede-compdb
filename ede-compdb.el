@@ -253,7 +253,9 @@ from the command line (which is most of them!)"
          ((member argi '("-I" "-F" "-isystem"))
           (object-add-to-list this :include-path (or argval (pop args)) t))
          ((equal argi "-include")
-          (object-add-to-list this :includes (pop args) t))
+          (object-add-to-list this :includes (pop args) t)) ;; append
+         ((equal argi "-imacros")
+          (object-add-to-list this :includes (pop args))) ;; prepend
          ;; TODO: -nostdinc, -nostdlibinc, -nobuildinic
          ((not seenopt)
           (oset this compiler (if (slot-boundp this :compiler) (concat (oref this compiler) " " argi) argi)))

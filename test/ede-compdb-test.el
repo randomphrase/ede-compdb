@@ -35,13 +35,13 @@
 (ert-deftest parse-command-line ()
   "Tests parsing of command lines"
   (let ((e (compdb-entry "foo.cpp" :directory "." :command-line
-                         "g++ -Dfoo -Dbar=baz -Uqux -isystem /opt/quxx/include -I/opt/local/include -Iincludes -include bar.hpp main.cpp")))
+                         "g++ -Dfoo -Dbar=baz -Uqux -isystem /opt/quxx/include -I/opt/local/include -Iincludes -include bar.hpp -imacros config.h main.cpp")))
     (parse-command-line-if-needed e)
     (should (equal "g++" (oref e compiler)))
     (should (equal '(("foo") ("bar" . "baz")) (oref e defines)))
     (should (equal '("qux") (oref e undefines)))
     (should (equal '("/opt/quxx/include" "/opt/local/include" "includes") (oref e include-path)))
-    (should (equal '("bar.hpp") (oref e includes)))
+    (should (equal '("config.h" "bar.hpp") (oref e includes)))
     ))
 
 
