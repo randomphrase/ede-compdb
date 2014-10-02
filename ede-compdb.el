@@ -262,18 +262,36 @@ from the command line (which is most of them!)"
          )
         ))))
 
-(defmethod ede-system-include-path ((this compdb-entry) &optional excludecompiler)
+(defmethod get-defines ((this compdb-entry))
+  "Get the preprocessor defines for THIS compdb entry. Returns a list of strings, suitable for use with -D arguments."
+  (parse-command-line-if-needed this)
+  (mapcar
+   ;; Convert ("SYM" . "DEF") into "SYM=DEF"
+   (lambda (def) (if (cdr def)
+                     (concat (car def) "=" (cdr def))
+                   (car def)))
+   (oref this defines)))
+
+(defmethod get-include-path ((this compdb-entry) &optional excludecompiler)
   "Get the system include path used by THIS compdb entry.
 If EXCLUDECOMPILER is t, we ignore compiler include paths"
+  (parse-command-line-if-needed this)
   (append
    (mapcar
     (lambda (I)
       (expand-file-name I (oref this directory)))
-        (oref this include-path))
-       (list (oref this directory))
-       (unless excludecompiler
-         (ede-compdb-compiler-include-path (oref this compiler) (oref this directory)))
-       ))
+    (oref this include-path))
+   (list (oref this directory))
+   (unless excludecompiler
+     (ede-compdb-compiler-include-path (oref this compiler) (oref this directory)))
+   ))
+
+(defmethod get-includes ((this compdb-entry))
+  "Get the include files used by THIS compdb entry. Relative paths are resolved."
+  (parse-command-line-if-needed this)
+  (mapcar (lambda (I)
+            (expand-file-name I (oref this directory)))
+          (oref this includes)))
 
 ;;; ede-compdb-target methods:
 
@@ -283,8 +301,7 @@ If EXCLUDECOMPILER is t, we ignore compiler include paths"
   (project-rescan-if-needed (oref this project))
   (let ((comp (oref this compilation)))
     (when comp
-      (parse-command-line-if-needed comp)
-      (ede-system-include-path comp excludecompiler))))
+      (get-include-path comp excludecompiler))))
 
 (defmethod ede-preprocessor-map ((this ede-compdb-target))
   "Get the preprocessor map for target THIS."

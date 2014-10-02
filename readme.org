@@ -242,14 +242,9 @@ The standard clang and gcc checkers can be automatically configured using EDE-co
         (setq flycheck-clang-no-rtti t))
       (when (string-match "\\_<-fblocks\\_>" cmd)
         (setq flycheck-clang-blocks t))
-      (setq flycheck-clang-includes (oref comp includes))
-      (setq flycheck-clang-definitions (mapcar
-                                        ;; Convert ("SYM" . "DEF") into "SYM=DEF"
-                                        (lambda (def) (if (cdr def)
-                                                        (concat (car def) "=" (cdr def))
-                                                        (car def)))
-                                        (oref comp defines)))
-      (setq flycheck-clang-include-path (ede-system-include-path ede-object t))
+      (setq flycheck-clang-includes (get-includes comp))
+      (setq flycheck-clang-definitions (get-defines comp)
+      (setq flycheck-clang-include-path (get-include-path comp t))
       )))
 
 (add-hook 'ede-compdb-project-rescan-hook #'flycheck-compdb-setup)
