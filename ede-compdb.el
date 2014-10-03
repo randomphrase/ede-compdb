@@ -306,34 +306,35 @@ If EXCLUDECOMPILER is t, we ignore compiler include paths"
 (defmethod ede-preprocessor-map ((this ede-compdb-target))
   "Get the preprocessor map for target THIS."
   (project-rescan-if-needed (oref this project))
-  (when (oref this compilation)
-    (parse-command-line-if-needed (oref this compilation))
-    ;; Stolen from cpp-root
-    (require 'semantic/db)
-    (let ((spp (oref (oref this compilation) defines)))
-      (mapc
-       (lambda (F)
-         (let* ((expfile (expand-file-name F))
-                (table (when expfile
-                         ;; Disable EDE init on preprocessor file load
-                         ;; otherwise we recurse, cause errs, etc.
-                         (let ((ede-constructing t))
-                           (semanticdb-file-table-object expfile))))
-                )
-           (cond
-            ((not (file-exists-p expfile))
-             (message "Cannot find file %s in project." F))
-            ((string= expfile (buffer-file-name))
-             ;; Don't include this file in it's own spp table.
-             )
-            ((not table)
-             (message "No db table available for %s." expfile))
-            (t
-             (when (semanticdb-needs-refresh-p table)
-               (semanticdb-refresh-table table))
-             (setq spp (append spp (oref table lexical-table)))))))
-       (oref (oref this compilation) includes))
-      spp)))
+  (let ((comp (oref this compilation)))
+    (when comp
+      (parse-command-line-if-needed comp)
+      ;; Stolen from cpp-root
+      (require 'semantic/db)
+      (let ((spp (oref comp defines)))
+        (mapc
+         (lambda (F)
+           (let* ((expfile (expand-file-name F (oref comp directory)))
+                  (table (when expfile
+                           ;; Disable EDE init on preprocessor file load
+                           ;; otherwise we recurse, cause errs, etc.
+                           (let ((ede-constructing t))
+                             (semanticdb-file-table-object expfile))))
+                  )
+             (cond
+              ((not (file-exists-p expfile))
+               (message "Cannot find file %s in project." F))
+              ((string= expfile (buffer-file-name))
+               ;; Don't include this file in it's own spp table.
+               )
+              ((not table)
+               (message "No db table available for %s." expfile))
+              (t
+               (when (semanticdb-needs-refresh-p table)
+                 (semanticdb-refresh-table table))
+               (setq spp (append spp (oref table lexical-table)))))))
+         (oref (oref this compilation) includes))
+        spp))))
 
 (defmethod project-compile-target ((this ede-compdb-target))
   "Compile the current target THIS."
