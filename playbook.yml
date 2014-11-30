@@ -1,6 +1,6 @@
 - name: Setup testing environment on Travis CI
-  hosts: all
-  # connection: local
+  hosts: 127.0.0.1
+  connection: local
   gather_facts: False
   sudo: True
   vars:
