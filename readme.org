@@ -17,7 +17,7 @@ Features:
 
 License: GPLv2
 
-[[https://travis-ci.org/randomphrase/ede-compdb][https://travis-ci.org/randomphrase/ede-compdb.svg?branch=master]]
+[[https://travis-ci.org/randomphrase/ede-compdb][https://travis-ci.org/randomphrase/ede-compdb.svg?branch=master]] [[https://coveralls.io/r/randomphrase/ede-compdb][https://img.shields.io/coveralls/randomphrase/ede-compdb.svg]]
 
 ** Quickstart
 

@@ -31,9 +31,12 @@
 (require 'semantic)
 (require 'f)
 (require 'cl-lib)
+(require 'undercover)
 
 (defvar ede-compdb-test-path (f-dirname (f-this-file)))
 (defvar ede-compdb-path (f-parent ede-compdb-test-path))
+
+(undercover "ede-compdb.el")
 
 (require 'ede-compdb (f-expand "ede-compdb.el" ede-compdb-path))
 
