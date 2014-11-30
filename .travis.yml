@@ -5,9 +5,9 @@ env:
 before_install:
   # Bootstrap Ansible
   - sudo apt-get install software-properties-common
-  - sudo apt-add-repository ppa:ansible/ansible
-  - sudo apt-get update
-  - sudo apt-get install ansible
+  - sudo apt-add-repository -y ppa:ansible/ansible
+  - sudo apt-get update -y -q
+  - sudo apt-get install -y ansible
   - ansible-playbook -v playbook.yml
 install:
   # Install our packages
