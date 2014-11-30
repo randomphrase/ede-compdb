@@ -12,14 +12,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
   config.ssh.forward_agent = true
 
   # Bootstrap installs puppet 3 from the puppetlabs repo,and some modules
-  config.vm.provision "puppet" do |puppet|
-    puppet.manifests_path = 'puppet/manifests'
-    puppet.manifest_file = "bootstrap.pp"
-  end
-
-  # Actually install the test environment
-  config.vm.provision "puppet" do |puppet|
-    puppet.manifests_path = 'puppet/manifests'
-    puppet.manifest_file = "testenv.pp"
+  config.vm.provision "ansible" do |ansible|
+    ansible.playbook = "playbook.yml"
   end
 end
