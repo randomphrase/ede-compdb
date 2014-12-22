@@ -238,7 +238,7 @@ from the command line (which is most of them!)"
     (while args
       (let ((argi (pop args)) argval defval)
         ;; Handle -DFOO, -UFOO, etc arguments
-        (when (string-match "\\`\\(-[DUIF]\\)\\([^=]+\\)\\(=\\(.+\\)\\)?" argi)
+        (when (string-match "\\`\\(-[DUIF]\\|-isystem\\)\\([^=]+\\)\\(=\\(.+\\)\\)?" argi)
           (setq argval (match-string 2 argi))
           (setq defval (match-string 4 argi))
           (setq argi (match-string 1 argi)))
@@ -340,6 +340,10 @@ If EXCLUDECOMPILER is t, we ignore compiler include paths"
   "Compile the current target THIS."
   (project-compile-target (oref this project) this))
 
+(defmethod ede-project-root ((this ede-compdb-target))
+  "Returns the root project for target THIS."
+  (oref this project))
+
 (defun ede-object-system-include-path ()
   "Return the system include path for the current buffer."
   (when ede-object
@@ -417,48 +421,12 @@ current configuration directory is used if CONFIG not set."
   "Inserts the compilation database into the current buffer"
   (insert-file-contents compdb-path))
 
-(defun ff-other-file-list ()
-  "Return a list of the 'other' files for the current buffer.
-Generation of other files uses the same rules and variables as
-defined for `ff-other-file-name', but does not stop at the first
-file found."
-  (require 'find-file)
-
-  (let* ((dirs (ff-list-replace-env-vars
-                (if (symbolp ff-search-directories)
-                    (symbol-value ff-search-directories)
-                  ff-search-directories)))
-         (alist (if (symbolp ff-other-file-alist)
-                    (symbol-value ff-other-file-alist)
-                  ff-other-file-alist))
-         (fname (file-name-nondirectory (buffer-file-name)))
-         (basename (file-name-sans-extension fname))
-         (suffixes (car (assoc-default fname alist 'string-match))))
-
-    (when suffixes
-      (when (and (atom suffixes) (fboundp suffixes))
-        (setq suffixes (funcall suffixes (buffer-file-name))))
-        
-      ;; A couple of minor differences from ff-other-file-name:
-      ;;
-      ;; 1. We search by suffix per directory, not the other way around.
-      ;; 2. We don't expand wildcards in the directory list.
-      ;;
-      ;; The doco for ff-search-directories says it will expand '*' chars in the
-      ;; directory list, and gives an example of "/usr/local/*/src/*". But in
-      ;; fact the ff-get-file-name function will only handle terminating '*'
-      ;; characters. However, expanding wildcards here might lead to an
-      ;; explosion of paths, so let's just not...
-
-      (let (ret)
-        (dolist (D dirs)
-          (dolist (S suffixes)
-            ;; Collect in reverse order
-            (setq ret (cons (concat (file-name-as-directory D) (concat basename S)) ret))
-            ))
-
-        (nreverse ret)
-        ))))
+(defmethod other-file-list ((_this ede-compdb-project) fname)
+  "Returns a list of 'other' files for FNAME."
+  ;; Use projectile-get-other-files if defined, or ff-other-file-list (see below) if not
+  (or (and (fboundp 'projectile-get-other-files)
+           (projectile-get-other-files fname (projectile-current-project-files) t))
+      (ff-other-file-list)))
 
 (defmethod compdb-entry-for-buffer ((this ede-compdb-project))
   "Returns an instance of ede-compdb-entry suitable for use with
@@ -471,7 +439,7 @@ an d pick one that is present in the compdb hashtable."
      ;; If the file is in the compilation database, use that
      (gethash fname (oref this compdb))
      ;; If one the 'other' files are in the compilation database, use the first match
-     (let ((others (ff-other-file-list)) found)
+     (let ((others (other-file-list this fname)) found)
        (while (and others (not found))
          (setq found (gethash (file-truename (car others)) (oref this compdb)))
          (setq others (cdr others)))
@@ -501,7 +469,8 @@ an d pick one that is present in the compdb hashtable."
          (json-array-type 'list)
          json-compdb)
 
-    (with-temp-buffer
+    (with-current-buffer (get-buffer-create (format "*compdb:%s*" (oref this name)))
+      (erase-buffer)
       (insert-compdb this compdb-path)
       (goto-char (point-min))
       (message "Reading Compilation Database from %s ..." compdb-path)
@@ -685,7 +654,7 @@ of `ede-compdb-target' or a string."
     (let ((default-directory (current-configuration-directory this)))
       (oset this phony-targets nil)
       (erase-buffer)
-      (call-process "ninja" nil t t "-t" "targets")
+      (call-process "ninja" nil t t "-f" (oref this compdb-file) "-t" "targets" "all")
       (let ((progress-reporter (make-progress-reporter "Scanning targets..." (point-min) (point-max))))
         (goto-char 0)
         (while (re-search-forward ede-ninja-target-regexp nil t)
@@ -702,7 +671,7 @@ into the current buffer. COMPDB-PATH represents the current path
 to :compdb-file"
   (message "Building compilation database...")
   (let ((default-directory (file-name-directory compdb-path)))
-    (apply 'call-process (append (list "ninja" nil t nil "-t" "compdb") (oref this :build-rules)))))
+    (apply 'call-process (append `("ninja" nil t nil "-f" ,(oref this compdb-file) "-t" "compdb") (oref this :build-rules)))))
 
 (defmethod project-interactive-select-target ((this ede-ninja-project) prompt)
   "Interactively query for a target. Argument PROMPT is the prompt to use."
@@ -711,5 +680,50 @@ to :compdb-file"
     (ede-compdb-target tname :name tname :project this)))
 
 (provide 'ede-compdb)
+
+;;; Utility functions:
+
+(defun ff-other-file-list ()
+  "Return a list of the 'other' files for the current buffer.
+Generation of other files uses the same rules and variables as
+defined for `ff-other-file-name', but does not stop at the first
+file found."
+  (require 'find-file)
+
+  (let* ((dirs (ff-list-replace-env-vars
+                (if (symbolp ff-search-directories)
+                    (symbol-value ff-search-directories)
+                  ff-search-directories)))
+         (alist (if (symbolp ff-other-file-alist)
+                    (symbol-value ff-other-file-alist)
+                  ff-other-file-alist))
+         (fname (file-name-nondirectory (buffer-file-name)))
+         (basename (file-name-sans-extension fname))
+         (suffixes (car (assoc-default fname alist 'string-match))))
+
+    (when suffixes
+      (when (and (atom suffixes) (fboundp suffixes))
+        (setq suffixes (funcall suffixes (buffer-file-name))))
+        
+      ;; A couple of minor differences from ff-other-file-name:
+      ;;
+      ;; 1. We search by suffix per directory, not the other way around.
+      ;; 2. We don't expand wildcards in the directory list.
+      ;;
+      ;; The doco for ff-search-directories says it will expand '*' chars in the
+      ;; directory list, and gives an example of "/usr/local/*/src/*". But in
+      ;; fact the ff-get-file-name function will only handle terminating '*'
+      ;; characters. However, expanding wildcards here might lead to an
+      ;; explosion of paths, so let's just not...
+
+      (let (ret)
+        (dolist (D dirs)
+          (dolist (S suffixes)
+            ;; Collect in reverse order
+            (setq ret (cons (concat (file-name-as-directory D) (concat basename S)) ret))
+            ))
+
+        (nreverse ret)
+        ))))
 
 ;;; ede-compdb.el ends here
