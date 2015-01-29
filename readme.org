@@ -51,16 +51,17 @@ EDE-compdb projects can also be created manually by invoking either the =ede-com
 In the most basic case, you can simply set the =:file= property to the relevant compilation database file, and the project will be loaded from the information in that file.
 
 #+BEGIN_SRC emacs-lisp
-  (ede-compdb-project "Myproj" :file "/path/to/src/compile_commands.json")
+  (ede-add-project-to-global-list
+   (ede-compdb-project "Myproj" :file "/path/to/src/compile_commands.json"))
 #+END_SRC
 
 The examples above assume that you are building your binaries into the same directory as the project source code. If you want to use a different directory for the compilation database, then you can use a =:compdb-file= property in conjunction with a =:file= property, as follows:
 
 #+BEGIN_SRC emacs-lisp
+  (ede-add-project-to-global-list
    (ede-compdb-project "Myproj"
                        :file "/path/to/src/CMakeLists.txt"
-                       :compdb-file "/path/to/build/compile_commands.json")
-  
+                       :compdb-file "/path/to/build/compile_commands.json"))
 #+END_SRC
 
 ** Multiple Build Configurations
@@ -102,7 +103,7 @@ Furthermore we're using the EDE autoload mechanism to automatically create and l
       ("Debug" . "build.dbg")
       ("Release" . "build.rel")
       ("RelWithDebInfo" . "build.r+d")))
-  
+
   (defun my-load-cmake-project (dir)
     "Creates a project for the given directory sourced at dir"
     (let ((default-directory dir)
@@ -113,7 +114,7 @@ Furthermore we're using the EDE autoload mechanism to automatically create and l
       (unless config-and-dir
         (error "Couldn't determine build directory for project at %s" dir))
       (ede-add-project-to-global-list
-       (ede-compdb-project 
+       (ede-compdb-project
         (file-name-nondirectory (directory-file-name dir))
         :file (expand-file-name "CMakeLists.txt" dir)
         :compdb-file (expand-file-name "compile_commands.json" (cdr config-and-dir))
@@ -122,13 +123,13 @@ Furthermore we're using the EDE autoload mechanism to automatically create and l
         :configurations (mapcar #'car my-cmake-build-directories)
         :build-command "cmake --build .."
         ))))
-  
+
   (defun vc-project-root (dir)
     (require 'vc)
     (let* ((default-directory dir)
            (backend (vc-deduce-backend)))
       (and backend (vc-call-backend backend 'root default-directory))))
-  
+
   (ede-add-project-autoload
    (ede-project-autoload "CMake"
                          :file 'ede-compdb
@@ -177,7 +178,7 @@ When CEDET is able to use the information in a compilation database, it signific
 So how is the compilation database generated? Several methods are possible:
 
 - For CMake-based projects using the GNU Make build tool, there is the ~CMAKE_EXPORT_COMPILE_COMMANDS~ option (described above) which tells CMake to write out a ~compile_commands.json~ file along with the generated Makefiles in the build directory. This file contains the entire compilation database for the project.
-- For projects using the [[http://martine.github.io/ninja/][Ninja build tool]], the compilation database can be generated on-demand using the ~-t compdb~ command. 
+- For projects using the [[http://martine.github.io/ninja/][Ninja build tool]], the compilation database can be generated on-demand using the ~-t compdb~ command.
 - The [[https://github.com/rizsotto/Bear][Build EAR]] (Bear) tool can generate a compilation database from any build system by sniffing the compiler commands as they are executed.
 
 Use of the compilation database is becoming more and more common, particularly for those projects using the clang toolset.
@@ -227,7 +228,7 @@ The standard clang and gcc checkers can be automatically configured using EDE-co
   (when (and ede-object (oref ede-object compilation))
     (let* ((comp (oref ede-object compilation))
            (cmd (get-command-line comp)))
-      
+
       ;; Configure flycheck clang checker.
       ;; TODO: configure gcc checker also
       (when (string-match " -std=\\([^ ]+\\)" cmd)
