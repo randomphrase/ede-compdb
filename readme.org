@@ -274,6 +274,24 @@ The [[https://github.com/randomphrase/company-c-headers][company-c-headers]] pac
     (setq company-c-headers-path-system 'ede-object-system-include-path)))
 #+END_SRC
 
+** Troubleshooting
+
+Unfortunately there is too much variation between build systems to accomodate all of them with sensible defaults, and so you may find that EDE-compdb doesn't work as intended. Here are a few steps you can take to investigate problems.
+
+1. When opening a source file, you should first check that the include paths are set correctly for your project. To do this, you can use the "Show include summary" mouse menu item, or @@html:<kbd>@@M-x semantic-decoration-all-include-summary@@html:</kbd>@@. This should tell you whether or not the include paths are being correctly read from the compilation database.
+
+2. Check the contents of your ~*compdb: projname*~ buffer (where ~projname~ is the name of your project). This should contain the compilation database for your project, in JSON format. If the buffer is not strictly JSON formatted, then it cannot be parsed by EDE-compdb. In particular, look for spurious output at the start or end of the buffer.
+
+3. For Ninja projects, you may need to customise the project for certain build rules. These are generally specific to the generator, and hence there are no good defaults. Generally you should ensure that the output of ~ninja -t compdb RULENAME~ produces JSON-formatted compilation database, where ~RULENAME~ is a compilation database rule. Check your generated =build.ninja= file for rule names if you don't know what to use here. Once you have determined the correct build rule names, you can use them in your project by providing the ~:build-rules~ argument, for example:
+
+#+BEGIN_SRC emacs-lisp
+(ede-ninja-project projname
+   :file projfile
+   :compdb-file compdb-file
+   :build-rules '("icc14.0.3_cxx" "gcc4.8.3_cxx")
+   )
+#+END_SRC
+
 ** Development
 
 There is an ert test suite which uses a sample CMake project, with a temporary directory as a build directory. CMake, Ninja and a C++ compiler are required to run these tests successfully.
