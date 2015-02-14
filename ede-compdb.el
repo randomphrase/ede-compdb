@@ -37,6 +37,7 @@
 
 (require 'ede)
 (require 'json)
+(require 'rx)
 
 (eval-when-compile
   (require 'cl-lib))
@@ -108,6 +109,9 @@
    (undefines
     :type list :initarg :undefines :initform '()
     :documentation "list of undefined macros")
+   (sysroot
+    :type string :initarg :sysroot
+    :documentation "Sysroot prefix, prepended to all system include paths if set")
    )
   "An entry in the compilation database"
   )
@@ -229,6 +233,22 @@ from the command line (which is most of them!)"
   (unless (slot-boundp this :compiler)
     (parse-command-line this)))
 
+(defconst ede-compdb-entry-combined-args-rx
+  (rx
+   string-start
+   (submatch
+    (or (: "-" (any "DUIF"))
+        "-isystem"
+        "--sysroot"))
+   (submatch
+    (+? any))
+   (optional
+    "="
+    (submatch (1+ any)))
+   string-end
+   )
+  "Regex to identify and parse combined arguments like -DFOO=bar, -I/dir, etc")
+
 (defmethod parse-command-line ((this compdb-entry))
   "Parse the :command-line slot of THIS to derive :compiler, :include-path, etc."
   (let ((args (split-string (oref this command-line)))
@@ -238,29 +258,32 @@ from the command line (which is most of them!)"
     (while args
       (let ((argi (pop args)) argval defval)
         ;; Handle -DFOO, -UFOO, etc arguments
-        (when (string-match "\\`\\(-[DUIF]\\|-isystem\\)\\([^=]+\\)\\(=\\(.+\\)\\)?" argi)
+        (when (string-match ede-compdb-entry-combined-args-rx argi)
           (setq argval (match-string 2 argi))
-          (setq defval (match-string 4 argi))
+          (setq defval (match-string 3 argi))
           (setq argi (match-string 1 argi)))
         (when (char-equal ?- (string-to-char argi))
           (setq seenopt t))
-        (cond
-         ((equal argi "-D")
-          (object-add-to-list this :defines (cons (or argval (pop args)) defval) t))
-         ((equal argi "-U")
-          (object-add-to-list this :undefines (or argval (pop args)) t))
-         ;; TODO: support gcc notation "=dir" where '=' is the sysroot prefix
-         ((member argi '("-I" "-F" "-isystem"))
-          (object-add-to-list this :include-path (or argval (pop args)) t))
-         ((equal argi "-include")
-          (object-add-to-list this :includes (pop args) t)) ;; append
-         ((equal argi "-imacros")
-          (object-add-to-list this :includes (pop args))) ;; prepend
-         ;; TODO: -nostdinc, -nostdlibinc, -nobuildinic
-         ((not seenopt)
+        (pcase argi
+          (`"-D"
+           (object-add-to-list this :defines (cons (or argval (pop args)) defval) t))
+          (`"-U"
+           (object-add-to-list this :undefines (or argval (pop args)) t))
+          ;; TODO: support gcc notation "=dir" where '=' is the sysroot prefix
+          ((or `"-I" `"-F" `"-isystem")
+           (object-add-to-list this :include-path (or argval (pop args)) t))
+          (`"-include"
+           (object-add-to-list this :includes (pop args) t)) ;; append
+          (`"-imacros"
+           (object-add-to-list this :includes (pop args))) ;; prepend
+          ((or `"--sysroot" `"-isysroot")
+           (oset this sysroot (or argval (pop args))))
+          ;; TODO: -nostdinc, -nostdlibinc, -nobuildinic
+          )
+        (unless seenopt
           (oset this compiler (if (slot-boundp this :compiler) (concat (oref this compiler) " " argi) argi)))
-         )
-        ))))
+        )
+      )))
 
 (defmethod get-defines ((this compdb-entry))
   "Get the preprocessor defines for THIS compdb entry. Returns a list of strings, suitable for use with -D arguments."
@@ -272,6 +295,12 @@ from the command line (which is most of them!)"
                    (car def)))
    (oref this defines)))
 
+(defmethod add-sysroot ((this compdb-entry) path)
+  "Prepend :sysroot, if set in THIS entry, to PATH."
+  (if (and (slot-boundp this :sysroot) (file-name-absolute-p path))
+      (concat (oref this sysroot) path)
+    path))
+
 (defmethod get-include-path ((this compdb-entry) &optional excludecompiler)
   "Get the system include path used by THIS compdb entry.
 If EXCLUDECOMPILER is t, we ignore compiler include paths"
@@ -279,11 +308,13 @@ If EXCLUDECOMPILER is t, we ignore compiler include paths"
   (append
    (mapcar
     (lambda (I)
-      (expand-file-name I (oref this directory)))
+      (expand-file-name (add-sysroot this I) (oref this directory)))
     (oref this include-path))
    (list (oref this directory))
    (unless excludecompiler
-     (ede-compdb-compiler-include-path (oref this compiler) (oref this directory)))
+     (mapcar
+      (lambda (I) (add-sysroot this I))
+      (ede-compdb-compiler-include-path (oref this compiler) (oref this directory))))
    ))
 
 (defmethod get-includes ((this compdb-entry))

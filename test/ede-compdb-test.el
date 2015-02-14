@@ -35,10 +35,10 @@
 
 (ert-deftest parse-command-line ()
   "Tests parsing of command lines"
-  (let* ((cmdline "g++ -Dfoo -Dbar=baz -Uqux -isystem /opt/quxx/include -I/opt/local/include -Iincludes -include bar.hpp -imacros config.h -isystem/opt/foo/include -sysroot /sysroot main.cpp")
+  (let* ((cmdline "g++ -Dfoo -Dbar=baz -Uqux -isystem /opt/quxx/include -I/opt/local/include -Iincludes -include bar.hpp -imacros config.h -isystem/opt/foo/include -isysroot /sysroot main.cpp")
          (e (compdb-entry "foo.cpp" :directory "." :command-line cmdline))
          ;; expected include dirs
-         (incdirs `("/opt/quxx/include" "/opt/local/include" ,(expand-file-name "includes") "/opt/foo/include" ".")))
+         (incdirs `("/sysroot/opt/quxx/include" "/sysroot/opt/local/include" ,(expand-file-name "includes") "/sysroot/opt/foo/include" ".")))
 
     (mocklet
      (((ede-compdb-compiler-include-path "g++" ".") => '("/opt/g++/include")))
@@ -49,7 +49,7 @@
      (should (equal '("qux") (oref e undefines)))
 
      (should (equal '("foo" "bar=baz") (get-defines e)))
-     (should (equal (append incdirs (list "/opt/g++/include")) (get-include-path e)))
+     (should (equal (append incdirs (list "/sysroot/opt/g++/include")) (get-include-path e)))
      (should (equal incdirs (get-include-path e t)))
      (should (equal (mapcar #'expand-file-name '("config.h" "bar.hpp")) (get-includes e)))
      )))
