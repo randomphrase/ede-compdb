@@ -31,19 +31,28 @@
 (require 'ert)
 (require 'el-mock)
 (require 'semantic)
+(require 'cl) ;; needed by el-mock
 
 (ert-deftest parse-command-line ()
   "Tests parsing of command lines"
-  (let ((e (compdb-entry "foo.cpp" :directory "." :command-line
-                         "g++ -Dfoo -Dbar=baz -Uqux -isystem /opt/quxx/include -I/opt/local/include -Iincludes -include bar.hpp -imacros config.h -isystem/opt/foo/include main.cpp")))
-    (parse-command-line-if-needed e)
-    (should (equal "g++" (oref e compiler)))
-    (should (equal '(("foo") ("bar" . "baz")) (oref e defines)))
-    (should (equal '("qux") (oref e undefines)))
-    (should (equal '("/opt/quxx/include" "/opt/local/include" "includes" "/opt/foo/include") (oref e include-path)))
-    (should (equal '("config.h" "bar.hpp") (oref e includes)))
-    ))
+  (let* ((cmdline "g++ -Dfoo -Dbar=baz -Uqux -isystem /opt/quxx/include -I/opt/local/include -Iincludes -include bar.hpp -imacros config.h -isystem/opt/foo/include -sysroot /sysroot main.cpp")
+         (e (compdb-entry "foo.cpp" :directory "." :command-line cmdline))
+         ;; expected include dirs
+         (incdirs `("/opt/quxx/include" "/opt/local/include" ,(expand-file-name "includes") "/opt/foo/include" ".")))
 
+    (mocklet
+     (((ede-compdb-compiler-include-path "g++" ".") => '("/opt/g++/include")))
+    
+     (should (equal cmdline (get-command-line e)))
+
+     (should (equal '(("foo") ("bar" . "baz")) (oref e defines)))
+     (should (equal '("qux") (oref e undefines)))
+
+     (should (equal '("foo" "bar=baz") (get-defines e)))
+     (should (equal (append incdirs (list "/opt/g++/include")) (get-include-path e)))
+     (should (equal incdirs (get-include-path e t)))
+     (should (equal (mapcar #'expand-file-name '("config.h" "bar.hpp")) (get-includes e)))
+     )))
 
 (ert-deftest empty-build-dir ()
   "Tests that we can still open files when the build directory can't be located, or is empty"
