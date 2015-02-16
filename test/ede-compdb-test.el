@@ -35,7 +35,7 @@
 
 (ert-deftest parse-command-line ()
   "Tests parsing of command lines"
-  (let* ((cmdline "g++ -Dfoo -Dbar=baz -Uqux -isystem /opt/quxx/include -I/opt/local/include -Iincludes -include bar.hpp -imacros config.h -isystem/opt/foo/include -isysroot /sysroot main.cpp")
+  (let* ((cmdline "g++ -Dfoo -Dbar=baz -Uqux -isystem /opt/quxx/include -I/opt/local/include -Iincludes -include bar.hpp -imacros config.h -isystem/opt/foo/include --sysroot=/sysroot main.cpp")
          (e (compdb-entry "foo.cpp" :directory "." :command-line cmdline))
          ;; expected include dirs
          (incdirs `("/sysroot/opt/quxx/include" "/sysroot/opt/local/include" ,(expand-file-name "includes") "/sysroot/opt/foo/include" ".")))

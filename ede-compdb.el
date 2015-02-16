@@ -240,14 +240,14 @@ from the command line (which is most of them!)"
     (or (: "-" (any "DUIF"))
         "-isystem"
         "--sysroot"))
-   (submatch
-    (+? any))
+   (optional
+    (submatch (+? (not (any "=")))))
    (optional
     "="
     (submatch (1+ any)))
    string-end
    )
-  "Regex to identify and parse combined arguments like -DFOO=bar, -I/dir, etc")
+  "Regex to identify and parse combined arguments like -DFOO=bar, -I/dir, etc.")
 
 (defmethod parse-command-line ((this compdb-entry))
   "Parse the :command-line slot of THIS to derive :compiler, :include-path, etc."
@@ -256,17 +256,17 @@ from the command line (which is most of them!)"
         (case-fold-search nil))
     ;; parsing code inspired by `command-line'
     (while args
-      (let ((argi (pop args)) argval defval)
+      (let ((argi (pop args)) argval eqval)
         ;; Handle -DFOO, -UFOO, etc arguments
         (when (string-match ede-compdb-entry-combined-args-rx argi)
           (setq argval (match-string 2 argi))
-          (setq defval (match-string 3 argi))
+          (setq eqval (match-string 3 argi))
           (setq argi (match-string 1 argi)))
         (when (char-equal ?- (string-to-char argi))
           (setq seenopt t))
         (pcase argi
           (`"-D"
-           (object-add-to-list this :defines (cons (or argval (pop args)) defval) t))
+           (object-add-to-list this :defines (cons (or argval (pop args)) eqval) t))
           (`"-U"
            (object-add-to-list this :undefines (or argval (pop args)) t))
           ;; TODO: support gcc notation "=dir" where '=' is the sysroot prefix
@@ -277,7 +277,7 @@ from the command line (which is most of them!)"
           (`"-imacros"
            (object-add-to-list this :includes (pop args))) ;; prepend
           ((or `"--sysroot" `"-isysroot")
-           (oset this sysroot (or argval (pop args))))
+           (oset this sysroot (or eqval (pop args))))
           ;; TODO: -nostdinc, -nostdlibinc, -nobuildinic
           )
         (unless seenopt
