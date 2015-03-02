@@ -80,8 +80,8 @@
          (kill-buffer buf)))
      )))
 
-(ert-deftest parse-clang-system-includes ()
-  "Tests discovery of clang system includes"
+(ert-deftest parse-compiler-includes ()
+  "Tests discovery of compiler include paths"
   (with-temp-buffer
     ;; This is a real example from Apple Clang 5.0
     (insert "clang -cc1 version 5.0 based upon LLVM 3.3svn default target x86_64-apple-darwin13.1.0
@@ -99,7 +99,7 @@ End of search list.
 ")
     (goto-char (point-min))
     
-    (should (equal (ede-compdb-parse-clang-system-includes)
+    (should (equal (ede-compdb-parse-compiler-includes)
                    '("/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/c++/v1"
                      "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/clang/5.0/include"
                      "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/include"

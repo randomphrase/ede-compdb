@@ -176,15 +176,27 @@
 
 (defvar ede-compdb-compiler-cache nil "Cached include paths for each compiler detected.")
 
-(defun ede-compdb-parse-clang-system-includes ()
-  "Parse the current buffer for clang system includes."
+(defconst ede-compdb-compiler-search-path-start-rx
+  "^#include \\(\"...\"\\|<...>\\) search starts here:$"
+  "Regex to identify the start of an include path list in the compiler's -v output.")
+
+(defconst ede-compdb-compiler-search-path-end-rx
+  "^End of search list.$"
+  "Regex to identify the end of an include path list in the compiler's -v output.")
+
+(defconst ede-compdb-compiler-search-path-dir-rx
+  "^ +\\(.+?\\)\\( (framework directory)\\)?$"
+  "Regex to identify each include directory in the compiler's -v output.")
+
+(defun ede-compdb-parse-compiler-includes ()
+  "Parse the current buffer for system includes."
   
-  (while (not (or (eobp) (looking-at "^#include \\(\"...\"\\|<...>\\) search starts here:")))
+  (while (not (or (eobp) (looking-at ede-compdb-compiler-search-path-start-rx)))
     (forward-line))
       
   (let (result)
-    (while (not (or (eobp) (looking-at "^End of search list.")))
-      (when (looking-at "^ +\\(.+?\\)\\( (framework directory)\\)?$")
+    (while (not (or (eobp) (looking-at ede-compdb-compiler-search-path-end-rx)))
+      (when (looking-at ede-compdb-compiler-search-path-dir-rx)
         ;; For now ignore framework directories
         (unless (match-string 2)
           (setq result (cons (file-truename (match-string 1)) result))))
@@ -192,30 +204,20 @@
 
     (reverse result)))
 
-(defun ede-compdb-clang-get-system-includes (clang)
-  "Return a list of system include paths by querying the compiler CLANG."
-  ;; The equivalent function in semantic/bovine/clang is obsolete, this version should work with modern clangs...
-  (with-temp-buffer
-    (call-process clang nil t nil "-x" "c++" "-Xclang" "-v" "-c" "-")
-    (goto-char (point-min))
-    (ede-compdb-parse-clang-system-includes)))
+(defun ede-compdb-get-compiler-includes (comp &optional dir)
+  "Return a list of system include paths by querying the compiler COMP in directory DIR."
+  (let ((default-directory (or dir default-directory)))
+    (with-temp-buffer
+      (call-process comp nil t nil "-x" "c++" "-v" "-E" "-")
+      (goto-char (point-min))
+      (ede-compdb-parse-compiler-includes))))
 
-(defun ede-compdb-compiler-include-path (comp dir)
-  "Look up include paths for COMP in directory DIR, and add to INCLUDE-PATHS."
+(defun ede-compdb-compiler-include-path (comp &optional dir)
+  "Look up include paths for COMP in directory DIR, and  add to INCLUDE-PATHS."
   (let ((path (cdr (assoc comp ede-compdb-compiler-cache))))
     (unless path
-      (require 'semantic/bovine/gcc)
-      (let ((default-directory dir))
-        ;; FIXME: this is pretty simplistic but it will do for now...
-        (let ((d (cdr (assoc '--with-gxx-include-dir
-                             (semantic-gcc-fields
-                              (shell-command-to-string (concat comp "-v")))))))
-          (when d
-            (setq path (list d))))))
-    ;; Try clang if GCC fails
-    (unless path
-      (setq path (ede-compdb-clang-get-system-includes comp)))
-    (add-to-list 'ede-compdb-compiler-cache (cons comp path))
+      (setq path (ede-compdb-get-compiler-includes comp dir))
+      (add-to-list 'ede-compdb-compiler-cache (cons comp path)))
     path))
 
 
