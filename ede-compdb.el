@@ -251,6 +251,15 @@ from the command line (which is most of them!)"
    )
   "Regex to identify and parse combined arguments like -DFOO=bar, -I/dir, etc.")
 
+(defconst ede-compdb-entry-sysroot-directory-rx
+  (rx
+   string-start
+   "="
+   (optional "/")
+   (group (1+ any))
+   string-end)
+  "Regex to identify directories which are relative to sysroot")
+
 (defmethod parse-command-line ((this compdb-entry))
   "Parse the :command-line slot of THIS to derive :compiler, :include-path, etc."
   (let ((args (split-string (oref this command-line)))
@@ -273,19 +282,32 @@ from the command line (which is most of them!)"
            (object-add-to-list this :undefines (or argval (pop args)) t))
           ;; TODO: support gcc notation "=dir" where '=' is the sysroot prefix
           ((or `"-I" `"-F" `"-isystem")
-           (object-add-to-list this :include-path (or argval (pop args)) t))
+           (object-add-to-list this :include-path (file-name-as-directory (or argval (pop args))) t))
           (`"-include"
            (object-add-to-list this :includes (pop args) t)) ;; append
           (`"-imacros"
            (object-add-to-list this :includes (pop args))) ;; prepend
           ((or `"--sysroot" `"-isysroot")
-           (oset this sysroot (or eqval (pop args))))
+           (oset this sysroot (file-name-as-directory (or eqval (pop args)))))
           ;; TODO: -nostdinc, -nostdlibinc, -nobuildinic
           )
         (unless seenopt
           (oset this compiler (if (slot-boundp this :compiler) (concat (oref this compiler) " " argi) argi)))
         )
-      )))
+      )
+
+    ;; Add sysroot prefix to include-path
+    (when (slot-boundp this :sysroot)
+      (let ((rep (concat (regexp-quote (oref this sysroot)) "\\1")))
+        (cl-maplist
+         (lambda (d) (setcar d (replace-regexp-in-string ede-compdb-entry-sysroot-directory-rx rep (car d))))
+         (oref this include-path))))
+
+    ;; Evaluate relative directories in include-path
+    (cl-maplist
+     (lambda (d) (setcar d (file-name-as-directory (expand-file-name (car d) (oref this directory)))))
+     (oref this include-path))
+    ))
 
 (defmethod get-defines ((this compdb-entry))
   "Get the preprocessor defines for THIS compdb entry. Returns a list of strings, suitable for use with -D arguments."
@@ -297,26 +319,18 @@ from the command line (which is most of them!)"
                    (car def)))
    (oref this defines)))
 
-(defmethod add-sysroot ((this compdb-entry) path)
-  "Prepend :sysroot, if set in THIS entry, to PATH."
-  (if (and (slot-boundp this :sysroot) (file-name-absolute-p path))
-      (concat (oref this sysroot) path)
-    path))
-
 (defmethod get-include-path ((this compdb-entry) &optional excludecompiler)
   "Get the system include path used by THIS compdb entry.
 If EXCLUDECOMPILER is t, we ignore compiler include paths"
   (parse-command-line-if-needed this)
   (append
-   (mapcar
-    (lambda (I)
-      (expand-file-name (add-sysroot this I) (oref this directory)))
-    (oref this include-path))
+   (oref this include-path)
    (list (oref this directory))
    (unless excludecompiler
-     (mapcar
-      (lambda (I) (add-sysroot this I))
-      (ede-compdb-compiler-include-path (oref this compiler) (oref this directory))))
+     (let ((path (ede-compdb-compiler-include-path (oref this compiler) (oref this directory))))
+       (if (slot-boundp this :sysroot)
+           (mapcar (lambda (d) (concat (directory-file-name (oref this sysroot)) d)) path)
+         path)))
    ))
 
 (defmethod get-includes ((this compdb-entry))
