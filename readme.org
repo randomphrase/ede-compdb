@@ -109,7 +109,7 @@ Furthermore we're using the EDE autoload mechanism to automatically create and l
     (let ((default-directory dir)
           (config-and-dir (car (cl-member-if (lambda (c)
                                                (file-readable-p
-                                                (expand-file-name "compile_commands.json" (cdr c))))
+                                                (expand-file-name "compile_commands.json" (concat dir (cdr c)))))
                                              my-cmake-build-directories))))
       (unless config-and-dir
         (error "Couldn't determine build directory for project at %s" dir))
@@ -127,7 +127,7 @@ Furthermore we're using the EDE autoload mechanism to automatically create and l
   (defun vc-project-root (dir)
     (require 'vc)
     (let* ((default-directory dir)
-           (backend (vc-deduce-backend)))
+           (backend (vc-responsible-backend dir)))
       (and backend (vc-call-backend backend 'root default-directory))))
 
   (ede-add-project-autoload
