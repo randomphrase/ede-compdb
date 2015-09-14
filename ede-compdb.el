@@ -38,6 +38,7 @@
 (require 'ede)
 (require 'json)
 (require 'rx)
+(require 'tramp)
 
 (eval-when-compile
   (require 'cl-lib))
@@ -208,7 +209,7 @@
   "Return a list of system include paths by querying the compiler COMP in directory DIR."
   (let ((default-directory (or dir default-directory)))
     (with-temp-buffer
-      (call-process comp nil t nil "-x" "c++" "-v" "-E" "-")
+      (process-file comp nil t nil "-x" "c++" "-v" "-E" "-")
       (goto-char (point-min))
       (ede-compdb-parse-compiler-includes))))
 
@@ -220,6 +221,18 @@
       (add-to-list 'ede-compdb-compiler-cache (cons comp path)))
     path))
 
+(defun ede-compdb-make-path (base-path path)
+  "Using BASE-PATH return the path to PATH.
+If base-path is accessed using Tramp then the necessary components from
+base-path are applied to path making it accessible over Tramp."
+  (if (tramp-tramp-file-p base-path)
+      (let ((tramp-file (tramp-dissect-file-name base-path)))
+        (tramp-make-tramp-file-name
+         (tramp-file-name-method tramp-file)
+         (tramp-file-name-user tramp-file)
+         (tramp-file-name-host tramp-file)
+         path))
+    path))
 
 ;;; compdb-entry methods:
 
@@ -527,8 +540,8 @@ an d pick one that is present in the compdb hashtable."
           (iter 1))
       
       (dolist (E json-compdb)
-        (let* ((directory (file-name-as-directory (cdr (assoc 'directory E))))
-               (filename (expand-file-name (cdr (assoc 'file E)) directory))
+        (let* ((directory (file-name-as-directory (ede-compdb-make-path compdb-path (cdr (assoc 'directory E)))))
+               (filename (expand-file-name (ede-compdb-make-path compdb-path (cdr (assoc 'file E))) directory))
                (filetruename (file-truename filename))
                (command-line (cdr (assoc 'command E)))
                (compilation
@@ -701,7 +714,7 @@ of `ede-compdb-target' or a string."
     (let ((default-directory (current-configuration-directory this)))
       (oset this phony-targets nil)
       (erase-buffer)
-      (call-process "ninja" nil t t "-f" (oref this compdb-file) "-t" "targets" "all")
+      (process-file "ninja" nil t t "-f" (oref this compdb-file) "-t" "targets" "all")
       (let ((progress-reporter (make-progress-reporter "Scanning targets..." (point-min) (point-max))))
         (goto-char 0)
         (while (re-search-forward ede-ninja-target-regexp nil t)
@@ -718,7 +731,7 @@ into the current buffer. COMPDB-PATH represents the current path
 to :compdb-file"
   (message "Building compilation database...")
   (let ((default-directory (file-name-directory compdb-path)))
-    (apply 'call-process (append `("ninja" nil t nil "-f" ,(oref this compdb-file) "-t" "compdb") (oref this :build-rules)))))
+    (apply 'process-file (append `("ninja" nil t nil "-f" ,(oref this compdb-file) "-t" "compdb") (oref this :build-rules)))))
 
 (defmethod project-interactive-select-target ((this ede-ninja-project) prompt)
   "Interactively query for a target. Argument PROMPT is the prompt to use."
