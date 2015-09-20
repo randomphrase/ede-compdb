@@ -2,7 +2,7 @@
 #+AUTHOR: Alastair Rankine
 #+EMAIL: alastair@girtby.net
 
-**Project Status:** Please note that this project has been merged into [[http://cedet.sourceforge.net][CEDET]] proper. This repo will be maintained only until the next major release of CEDET, and then it will be deprecated. No new features will be delivered to this repo, instead please consider tracking CEDET master.
+*Project Status:* Please note that this project has been merged into [[http://cedet.sourceforge.net][CEDET]] proper. This repo will be maintained only until the next major release of CEDET, and then it will be deprecated. No new features will be delivered to this repo, instead please consider tracking CEDET master.
 
 EDE-compdb is a library that enables the Emacs Development Environment (EDE), which is part of [[http://cedet.sourceforge.net/][CEDET]], to be used with a [[http://clang.llvm.org/docs/JSONCompilationDatabase.html][compilation database]], as provided by build tools such as [[http://www.cmake.org][CMake]] or [[http://martine.github.io/ninja/][Ninja]]. This enables CEDET to be automatically configured for use to support parsing, navigation, completion, and so on. This is especially useful for C and C++ projects which are otherwise quite tricky to configure for use with CEDET and other libraries.
 
