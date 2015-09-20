@@ -2,6 +2,8 @@
 #+AUTHOR: Alastair Rankine
 #+EMAIL: alastair@girtby.net
 
+**Project Status:** Please note that this project has been merged into [[http://cedet.sourceforge.net][CEDET]] proper. This repo will be maintained only until the next major release of CEDET, and then it will be deprecated. No new features will be delivered to this repo, instead please consider tracking CEDET master.
+
 EDE-compdb is a library that enables the Emacs Development Environment (EDE), which is part of [[http://cedet.sourceforge.net/][CEDET]], to be used with a [[http://clang.llvm.org/docs/JSONCompilationDatabase.html][compilation database]], as provided by build tools such as [[http://www.cmake.org][CMake]] or [[http://martine.github.io/ninja/][Ninja]]. This enables CEDET to be automatically configured for use to support parsing, navigation, completion, and so on. This is especially useful for C and C++ projects which are otherwise quite tricky to configure for use with CEDET and other libraries.
 
 Features:
@@ -40,7 +42,7 @@ This will generate build files in the source directory, as well as a ~compile_co
 
 Note that if you are using the [[http://martine.github.io/ninja/][Ninja build tool]], you don't need to generate the ~compile_commands.json~ file, because ninja can generate the compilation database dynamically.
 
-Now open any of your source files in emacs, and you should see all the includes correctly parsed. Be aware that due to a limitation in the current CEDET, if you use "Summarize includes current buffer" you will *NOT* see the project include path for the current source file.
+Now open any of your source files in emacs, and you should see all the includes correctly parsed. Use @@html:<kbd>@@M-x semantic-c-describe-environment@@html:</kbd>@@ to check that all include paths are recognised correctly. If not, see [[Troubleshooting]].
 
 ** Creating EDE-compdb projects
 
@@ -300,9 +302,9 @@ To run the tests, you need to install [[http://cask.github.io][Cask]], and use =
 
 ** Current limitations/TODOs/Wishlist:
 
-- As stated above, if you use "Summarize includes current buffer" you will *NOT* see the system include path for the buffer. The reason is that the include path is set on the target, and not on the project. However, the summarize function only prints out the system include path for the project, and not the target. You can of course use ~(ede-system-include-path ede-object)~ to check the include path instead.
+- If you use "Summarize includes current buffer" you will *NOT* see the system include path for the buffer. The reason is that the include path is set on the target, and not on the project. However, the summarize function only prints out the system include path for the project, and not the target. Use @@html:<kbd>@@M-x semantic-c-describe-environment@@html:</kbd>@@ instead.
 
-- EDE-compdb only does very basic parsing of the GCC (or compatible) command line options, and doesn't support any of the more esoteric GCC-specfic ones such as "-imacros", "-idirafter", "-iprefix", etc.
+- EDE-compdb only does very basic parsing of the GCC (or compatible) command line options, and doesn't support any of the more esoteric GCC-specfic ones such as "-isysroot", "-idirafter", etc.
 
 - Currently uses the json module for loading the compilation database. This can be slow for large projects. We should either speed it up, or somehow defer the work so that it is scheduled it idle time.
 
