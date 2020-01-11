@@ -544,7 +544,14 @@ an d pick one that is present in the compdb hashtable."
         (let* ((directory (file-name-as-directory (ede-compdb-make-path compdb-path (cdr (assoc 'directory E)))))
                (filename (expand-file-name (ede-compdb-make-path compdb-path (cdr (assoc 'file E))) directory))
                (filetruename (file-truename filename))
-               (command-line (cdr (assoc 'command E)))
+               ;; From http://clang.llvm.org/docs/JSONCompilationDatabase.html
+               ;;   arguments: The compile command executed as list of strings.
+               ;;   Either arguments or command is required.
+               ;; More recent versions of bear prefer "arguments", so we generate
+               ;;  "command" field from "arguments" field.
+               (command-line (or (cdr (assoc 'command E)) (reduce (lambda (acum arg)
+                                                                    (concat acum " " arg))
+                                                                  (cdr (assoc 'arguments E)))))
                (compilation
                 (compdb-entry filename
                               :command-line command-line
