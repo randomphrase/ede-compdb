@@ -41,6 +41,7 @@
 (require 'tramp)
 
 (eval-when-compile
+  (require 'cl)
   (require 'cl-lib))
 
 (declare-function semantic-gcc-fields "semantic/bovine/gcc")
