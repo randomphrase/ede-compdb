@@ -41,6 +41,7 @@
 (require 'tramp)
 
 (eval-when-compile
+  (require 'cl)
   (require 'cl-lib))
 
 (declare-function semantic-gcc-fields "semantic/bovine/gcc")
@@ -486,7 +487,7 @@ current configuration directory is used if CONFIG not set."
   ;; Use projectile-get-other-files if defined, or ff-other-file-list (see below) if not
   (or (and (fboundp 'projectile-get-other-files)
            (projectile-project-p)
-           (projectile-get-other-files fname (projectile-current-project-files) t))
+           (projectile-get-other-files fname (projectile-current-project-files)))
       (ff-other-file-list)))
 
 (defmethod compdb-entry-for-buffer ((this ede-compdb-project))
@@ -544,7 +545,14 @@ an d pick one that is present in the compdb hashtable."
         (let* ((directory (file-name-as-directory (ede-compdb-make-path compdb-path (cdr (assoc 'directory E)))))
                (filename (expand-file-name (ede-compdb-make-path compdb-path (cdr (assoc 'file E))) directory))
                (filetruename (file-truename filename))
-               (command-line (cdr (assoc 'command E)))
+               ;; From http://clang.llvm.org/docs/JSONCompilationDatabase.html
+               ;;   arguments: The compile command executed as list of strings.
+               ;;   Either arguments or command is required.
+               ;; More recent versions of bear prefer "arguments", so we generate
+               ;;  "command" field from "arguments" field.
+               (command-line (or (cdr (assoc 'command E)) (reduce (lambda (acum arg)
+                                                                    (concat acum " " arg))
+                                                                  (cdr (assoc 'arguments E)))))
                (compilation
                 (compdb-entry filename
                               :command-line command-line
