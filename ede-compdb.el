@@ -487,7 +487,7 @@ current configuration directory is used if CONFIG not set."
   ;; Use projectile-get-other-files if defined, or ff-other-file-list (see below) if not
   (or (and (fboundp 'projectile-get-other-files)
            (projectile-project-p)
-           (projectile-get-other-files fname (projectile-current-project-files) t))
+           (projectile-get-other-files fname (projectile-current-project-files)))
       (ff-other-file-list)))
 
 (defmethod compdb-entry-for-buffer ((this ede-compdb-project))
