@@ -41,6 +41,7 @@
 (require 'tramp)
 
 (eval-when-compile
+  (require 'cl)
   (require 'cl-lib))
 
 (declare-function semantic-gcc-fields "semantic/bovine/gcc")
@@ -246,7 +247,7 @@ line until needed. Call this before accessing any slots derived
 from the command line (which is most of them!)"
   ;; compiler slot is used to determine whether we need to parse the command line
   (unless (slot-boundp this :compiler)
-    (parse-command-line this)))
+    (parse-command-line this (oref this command-line))))
 
 (defconst ede-compdb-entry-combined-args-rx
   (rx
@@ -254,7 +255,8 @@ from the command line (which is most of them!)"
    (submatch
     (or (: "-" (any "DUIF"))
         "-isystem"
-        "--sysroot"))
+        "--sysroot"
+        "@"))
    (optional
     (submatch (+? (not (any "=")))))
    (optional
@@ -273,11 +275,11 @@ from the command line (which is most of them!)"
    string-end)
   "Regex to identify directories which are relative to sysroot")
 
-(defmethod parse-command-line ((this compdb-entry))
+(defmethod parse-command-line ((this compdb-entry) command-line)
   "Parse the :command-line slot of THIS to derive :compiler, :include-path, etc."
-  (let ((args (split-string (oref this command-line)))
-        (seenopt nil)
-        (case-fold-search nil))
+  (let* ((args (split-string command-line))
+         (seenopt nil)
+         (case-fold-search nil))
     ;; parsing code inspired by `command-line'
     (while args
       (let ((argi (pop args)) argval eqval)
@@ -286,8 +288,11 @@ from the command line (which is most of them!)"
           (setq argval (match-string 2 argi))
           (setq eqval (match-string 3 argi))
           (setq argi (match-string 1 argi)))
-        (when (char-equal ?- (string-to-char argi))
-          (setq seenopt t))
+        (let ((first-char (string-to-char argi)))
+	  (when (or (char-equal ?- first-char)
+		    (and (char-equal ?/ first-char)
+			 (not (file-exists-p argi))))
+            (setq seenopt t)))
         (pcase argi
           (`"-D"
            (object-add-to-list this :defines (cons (or argval (pop args)) eqval) t))
@@ -296,6 +301,12 @@ from the command line (which is most of them!)"
           ;; TODO: support gcc notation "=dir" where '=' is the sysroot prefix
           ((or `"-I" `"-F" `"-isystem")
            (object-add-to-list this :include-path (file-name-as-directory (or argval (pop args))) t))
+          (`"@"
+           (parse-command-line
+            this
+            (with-temp-buffer
+             (insert-file-contents (concat (oref this directory) (or argval (pop args))))
+             (buffer-string))))
           (`"-include"
            (object-add-to-list this :includes (pop args) t)) ;; append
           (`"-imacros"
@@ -486,7 +497,7 @@ current configuration directory is used if CONFIG not set."
   ;; Use projectile-get-other-files if defined, or ff-other-file-list (see below) if not
   (or (and (fboundp 'projectile-get-other-files)
            (projectile-project-p)
-           (projectile-get-other-files fname (projectile-current-project-files) t))
+           (projectile-get-other-files fname (projectile-current-project-files) ))
       (ff-other-file-list)))
 
 (defmethod compdb-entry-for-buffer ((this ede-compdb-project))
@@ -544,7 +555,14 @@ an d pick one that is present in the compdb hashtable."
         (let* ((directory (file-name-as-directory (ede-compdb-make-path compdb-path (cdr (assoc 'directory E)))))
                (filename (expand-file-name (ede-compdb-make-path compdb-path (cdr (assoc 'file E))) directory))
                (filetruename (file-truename filename))
-               (command-line (cdr (assoc 'command E)))
+               ;; From http://clang.llvm.org/docs/JSONCompilationDatabase.html
+               ;;   arguments: The compile command executed as list of strings.
+               ;;   Either arguments or command is required.
+               ;; More recent versions of bear prefer "arguments", so we generate
+               ;;  "command" field from "arguments" field.
+               (command-line (or (cdr (assoc 'command E)) (reduce (lambda (acum arg)
+                                                                    (concat acum " " arg))
+                                                                  (cdr (assoc 'arguments E)))))
                (compilation
                 (compdb-entry filename
                               :command-line command-line
